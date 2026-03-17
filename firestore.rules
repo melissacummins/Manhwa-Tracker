@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: manhwas
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string (required, 1-255 chars)
+    //   - alternativeTitles: list of strings (optional, max 10 items)
+    //   - status: string (required, 1-50 chars)
+    //   - isFavorite: bool (optional)
+    //   - notes: string (optional, max 5000 chars)
+    //   - createdAt: timestamp (required)
+    //   - updatedAt: timestamp (required)
+    //   - userId: string (required, matches auth.uid)
+    //
+    // Collection: userSettings
+    // Document ID: matches auth.uid
+    // Fields:
+    //   - statusConfig: map (optional, status names to hex strings)
+    //   - userId: string (required, matches auth.uid)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isValidManhwa(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 255 &&
+             data.status is string && data.status.size() >= 1 && data.status.size() <= 50 &&
+             data.userId == request.auth.uid &&
+             (!('alternativeTitles' in data) || (data.alternativeTitles is list && data.alternativeTitles.size() <= 10)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000));
+    }
+
+    function isValidUserSettings(data) {
+      return data.userId == request.auth.uid &&
+             (!('statusConfig' in data) || data.statusConfig is map);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /manhwas/{manhwaId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidManhwa(request.resource.data);
+      allow update: if isDocOwner() && isValidManhwa(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /userSettings/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserSettings(request.resource.data);
+      allow update: if isOwner(userId) && isValidUserSettings(request.resource.data);
+    }
+  }
+}

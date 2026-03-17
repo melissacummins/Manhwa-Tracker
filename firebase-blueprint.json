@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "Manhwa": {
+      "title": "Manhwa",
+      "description": "A single manhwa entry in the user's collection.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The primary title of the manhwa."
+        },
+        "alternativeTitles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Other names the manhwa is known by."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current reading status (e.g., 'Reading', 'Completed', 'Dropped')."
+        },
+        "isFavorite": {
+          "type": "boolean",
+          "description": "Whether the manhwa is marked as a favorite."
+        },
+        "notes": {
+          "type": "string",
+          "description": "User notes or review of the manhwa."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the entry was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the entry was last updated."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns this entry."
+        }
+      },
+      "required": ["title", "status", "userId"]
+    },
+    "UserSettings": {
+      "title": "User Settings",
+      "description": "Customizable settings for the user, including status colors.",
+      "type": "object",
+      "properties": {
+        "statusConfig": {
+          "type": "object",
+          "description": "Map of status names to their color hex codes."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who owns these settings."
+        }
+      },
+      "required": ["userId"]
+    }
+  },
+  "firestore": {
+    "/manhwas/{manhwaId}": {
+      "schema": "Manhwa",
+      "description": "Collection of manhwa entries."
+    },
+    "/userSettings/{userId}": {
+      "schema": "UserSettings",
+      "description": "User-specific settings."
+    }
+  }
+}

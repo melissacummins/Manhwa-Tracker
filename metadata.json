@@ -1,0 +1,5 @@
+{
+  "name": "Manhwa Tracker",
+  "description": "A comprehensive app to track your manhwa collection, manage statuses, and automatically fetch alternative names using AI.",
+  "requestFramePermissions": []
+}
