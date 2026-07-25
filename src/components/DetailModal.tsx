@@ -82,8 +82,8 @@ export function DetailModal({
             </div>
           )}
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1 sm:pr-10">
+            <div className="flex items-start gap-3 pr-10 sm:pr-0">
               <h2 className="font-serif text-2xl font-semibold leading-tight">{item.title}</h2>
               <button
                 onClick={copyTitle}
