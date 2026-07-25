@@ -19,6 +19,7 @@ export interface MediaItem {
   status: string;
   isFavorite: boolean;
   wouldRevisit: boolean;
+  isExcited?: boolean;   // pinned to the "Most Excited For" shelf
   rating: number | null;
   tags: string[];
   year: number | null;
