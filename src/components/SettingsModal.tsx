@@ -2,7 +2,7 @@ import React from 'react';
 import { Download, Upload, XCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db, doc, updateDoc, User } from '../firebase';
-import { UserSettings } from '../types';
+import { UserConfig } from '../types';
 
 export function SettingsModal({
   user,
@@ -12,7 +12,7 @@ export function SettingsModal({
   onImport,
 }: {
   user: User;
-  settings: UserSettings | null;
+  settings: UserConfig | null;
   onClose: () => void;
   onExport: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -50,7 +50,7 @@ export function SettingsModal({
                     value={color}
                     onChange={async (e) => {
                       const newConfig = { ...settings.statusConfig, [status]: e.target.value };
-                      await updateDoc(doc(db, 'userSettings', user.uid), { statusConfig: newConfig });
+                      await updateDoc(doc(db, 'users', user.uid, 'settings', 'config'), { statusConfig: newConfig });
                     }}
                     className="w-8 h-8 rounded cursor-pointer"
                   />

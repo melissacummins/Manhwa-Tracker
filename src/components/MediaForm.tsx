@@ -1,37 +1,47 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Star, XCircle } from 'lucide-react';
+import { AlertCircle, Image as ImageIcon, RefreshCw, Search, Star, XCircle } from 'lucide-react';
 import {
   collection,
   db,
   doc,
   handleFirestoreError,
   OperationType,
+  serverTimestamp,
   setDoc,
   updateDoc,
   User,
 } from '../firebase';
+import { searchMetadata, MetadataError, MetadataResult } from '../lib/metadata';
 import { cn } from '../lib/utils';
-import { Manhwa, UserSettings } from '../types';
+import { MediaItem, MediaType, MEDIA_TYPES, UserConfig, normalizeTitle } from '../types';
 
 export function MediaForm({
   user,
-  existingManhwas,
+  existingItems,
   settings,
-  editingManhwa,
+  editingItem,
   onClose,
 }: {
   user: User;
-  existingManhwas: Manhwa[];
-  settings: UserSettings | null;
-  editingManhwa: Manhwa | null;
+  existingItems: MediaItem[];
+  settings: UserConfig | null;
+  editingItem: MediaItem | null;
   onClose: () => void;
 }) {
-  const [title, setTitle] = useState(editingManhwa?.title || '');
-  const [altTitles, setAltTitles] = useState<string[]>(editingManhwa?.alternativeTitles || []);
-  const [status, setStatus] = useState(editingManhwa?.status || 'Plan to Read');
-  const [isFavorite, setIsFavorite] = useState(editingManhwa?.isFavorite || false);
-  const [notes, setNotes] = useState(editingManhwa?.notes || '');
-  const [duplicateFound, setDuplicateFound] = useState<Manhwa | null>(null);
+  const [mediaType, setMediaType] = useState<MediaType>(editingItem?.mediaType || 'manhwa');
+  const [title, setTitle] = useState(editingItem?.title || '');
+  const [altTitles, setAltTitles] = useState<string[]>(editingItem?.alternativeTitles || []);
+  const [coverUrl, setCoverUrl] = useState<string | null>(editingItem?.coverUrl || null);
+  const [year, setYear] = useState<number | null>(editingItem?.year ?? null);
+  const [externalIds, setExternalIds] = useState<MediaItem['externalIds']>(editingItem?.externalIds || {});
+  const [status, setStatus] = useState(editingItem?.status || 'Plan to Read');
+  const [isFavorite, setIsFavorite] = useState(editingItem?.isFavorite || false);
+  const [notes, setNotes] = useState(editingItem?.notes || '');
+  const [duplicateFound, setDuplicateFound] = useState<MediaItem | null>(null);
+
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [results, setResults] = useState<MetadataResult[] | null>(null);
 
   // Duplicate Check
   useEffect(() => {
@@ -39,77 +49,197 @@ export function MediaForm({
       setDuplicateFound(null);
       return;
     }
-    const normalizedTitle = title.toLowerCase().trim();
-    const found = existingManhwas.find(m =>
-      m.id !== editingManhwa?.id && (
-        m.title.toLowerCase().trim() === normalizedTitle ||
-        m.alternativeTitles.some(alt => alt.toLowerCase().trim() === normalizedTitle)
+    const normalized = normalizeTitle(title);
+    const found = existingItems.find(m =>
+      m.id !== editingItem?.id && (
+        normalizeTitle(m.title) === normalized ||
+        m.alternativeTitles.some(alt => normalizeTitle(alt) === normalized)
       )
     );
     setDuplicateFound(found || null);
-  }, [title, existingManhwas, editingManhwa]);
+  }, [title, existingItems, editingItem]);
+
+  const handleSearch = async () => {
+    if (!title.trim()) return;
+    setSearching(true);
+    setSearchError(null);
+    setResults(null);
+    try {
+      const found = await searchMetadata(title, mediaType);
+      setResults(found);
+      if (found.length === 0) setSearchError('No matches found — you can still add it manually.');
+    } catch (err) {
+      setSearchError(err instanceof MetadataError ? err.message : 'Search unavailable — add manually.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const applyResult = (r: MetadataResult) => {
+    setTitle(r.title);
+    setAltTitles(Array.from(new Set([...r.alternativeTitles])));
+    setCoverUrl(r.coverUrl);
+    setYear(r.year);
+    setExternalIds(r.source === 'anilist' ? { anilistId: r.externalId } : { tmdbId: r.externalId });
+    if (r.source === 'anilist' && mediaType !== 'anime' && mediaType !== 'webtoon') {
+      setMediaType(r.suggestedMediaType);
+    }
+    setResults(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !user) return;
 
     const data = {
+      mediaType,
       title,
       alternativeTitles: altTitles,
+      coverUrl,
+      year,
+      externalIds,
       status,
       isFavorite,
+      wouldRevisit: editingItem?.wouldRevisit ?? false,
+      rating: editingItem?.rating ?? null,
+      tags: editingItem?.tags ?? [],
       notes,
-      updatedAt: new Date(),
-      userId: user.uid
+      updatedAt: serverTimestamp(),
     };
 
     try {
-      if (editingManhwa) {
-        await updateDoc(doc(db, 'manhwas', editingManhwa.id), data);
+      const mediaCollection = collection(db, 'users', user.uid, 'media');
+      if (editingItem) {
+        await updateDoc(doc(mediaCollection, editingItem.id), data);
       } else {
-        const newDocRef = doc(collection(db, 'manhwas'));
-        await setDoc(newDocRef, { ...data, createdAt: new Date() });
+        const newDocRef = doc(mediaCollection);
+        await setDoc(newDocRef, { ...data, createdAt: serverTimestamp() });
       }
       onClose();
     } catch (err) {
-      handleFirestoreError(err, editingManhwa ? OperationType.UPDATE : OperationType.CREATE, 'manhwas');
+      handleFirestoreError(err, editingItem ? OperationType.UPDATE : OperationType.CREATE, 'users/media');
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[90vh]">
       <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-        <h2 className="text-xl font-bold">{editingManhwa ? 'Edit Manhwa' : 'Add New Manhwa'}</h2>
+        <h2 className="text-xl font-bold">{editingItem ? 'Edit Entry' : 'Add New Entry'}</h2>
         <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
           <XCircle className="w-6 h-6 text-slate-400" />
         </button>
       </div>
 
       <div className="p-6 space-y-6 overflow-y-auto flex-1">
-        {/* Title & Duplicate Warning */}
+        {/* Media Type */}
+        <div className="space-y-2">
+          <label className="text-sm font-bold text-slate-700">Type</label>
+          <div className="flex flex-wrap gap-2">
+            {MEDIA_TYPES.map(t => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setMediaType(t.value)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-bold border transition-all",
+                  mediaType === t.value
+                    ? "bg-indigo-600 border-indigo-600 text-white"
+                    : "bg-white border-slate-200 text-slate-500 hover:border-indigo-300"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Title + Search */}
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-700">Title</label>
-          <div className="relative">
+          <div className="flex gap-2">
             <input
               autoFocus
               required
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !searching) {
+                  e.preventDefault();
+                  handleSearch();
+                }
+              }}
               className={cn(
-                "w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none transition-all",
+                "flex-1 px-4 py-3 bg-slate-50 border rounded-2xl outline-none transition-all",
                 duplicateFound ? "border-amber-400 ring-2 ring-amber-100" : "border-slate-200 focus:ring-2 focus:ring-indigo-500"
               )}
-              placeholder="Enter manhwa title..."
+              placeholder="Enter a title, then search..."
             />
-            {duplicateFound && (
-              <div className="mt-2 flex items-center gap-2 text-amber-600 text-sm bg-amber-50 p-3 rounded-xl border border-amber-100">
-                <AlertCircle className="w-4 h-4" />
-                <span>Duplicate found: <strong>{duplicateFound.title}</strong> is already in your list.</span>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={handleSearch}
+              disabled={searching || !title.trim()}
+              className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+            >
+              {searching ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              Search
+            </button>
           </div>
+          {duplicateFound && (
+            <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 p-3 rounded-xl border border-amber-100">
+              <AlertCircle className="w-4 h-4" />
+              <span>Duplicate found: <strong>{duplicateFound.title}</strong> is already in your list.</span>
+            </div>
+          )}
+          {searchError && (
+            <div className="text-sm text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200">{searchError}</div>
+          )}
         </div>
+
+        {/* Search Results Picker */}
+        {results && results.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">Pick a match</label>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {results.map(r => (
+                <button
+                  key={`${r.source}-${r.externalId}`}
+                  type="button"
+                  onClick={() => applyResult(r)}
+                  className="flex-shrink-0 w-28 text-left group"
+                >
+                  {r.coverUrl ? (
+                    <img
+                      src={r.coverUrl}
+                      alt={r.title}
+                      className="w-28 h-40 object-cover rounded-xl border border-slate-200 group-hover:ring-2 group-hover:ring-indigo-500 transition-all"
+                    />
+                  ) : (
+                    <div className="w-28 h-40 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center group-hover:ring-2 group-hover:ring-indigo-500 transition-all">
+                      <ImageIcon className="w-8 h-8 text-slate-300" />
+                    </div>
+                  )}
+                  <div className="mt-1 text-xs font-medium text-slate-700 line-clamp-2">{r.title}</div>
+                  {r.year && <div className="text-xs text-slate-400">{r.year}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Cover preview */}
+        {coverUrl && (
+          <div className="flex items-center gap-3">
+            <img src={coverUrl} alt={title} className="w-16 h-24 object-cover rounded-lg border border-slate-200" />
+            <button
+              type="button"
+              onClick={() => setCoverUrl(null)}
+              className="text-xs text-slate-400 hover:text-red-500"
+            >
+              Remove cover
+            </button>
+          </div>
+        )}
 
         {/* Alternative Titles */}
         <div className="space-y-3">
@@ -199,7 +329,7 @@ export function MediaForm({
           type="submit"
           className="btn-primary flex-1"
         >
-          {editingManhwa ? 'Save Changes' : 'Add Manhwa'}
+          {editingItem ? 'Save Changes' : 'Add Entry'}
         </button>
       </div>
     </form>
