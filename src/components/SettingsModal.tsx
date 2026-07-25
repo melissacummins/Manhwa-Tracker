@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, Upload, XCircle } from 'lucide-react';
+import { Database, Download, Upload, XCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db, doc, updateDoc, User } from '../firebase';
 import { UserConfig } from '../types';
@@ -10,12 +10,14 @@ export function SettingsModal({
   onClose,
   onExport,
   onImport,
+  onMigrate,
 }: {
   user: User;
   settings: UserConfig | null;
   onClose: () => void;
   onExport: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onMigrate: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -75,6 +77,13 @@ export function SettingsModal({
                 <input type="file" accept=".json" onChange={onImport} className="hidden" />
               </label>
             </div>
+            <button
+              onClick={onMigrate}
+              className="btn-secondary w-full mt-3 flex items-center justify-center gap-2 py-3"
+            >
+              <Database className="w-4 h-4" />
+              Migrate legacy manhwa data
+            </button>
           </div>
         </div>
       </motion.div>

@@ -25,6 +25,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { StatsBar } from './components/StatsBar';
 import { MediaCard } from './components/MediaCard';
 import { MediaForm } from './components/MediaForm';
+import { MigrationModal } from './components/MigrationModal';
 import { NostalgiaModal } from './components/NostalgiaModal';
 import { SettingsModal } from './components/SettingsModal';
 
@@ -40,6 +41,7 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isNostalgiaOpen, setIsNostalgiaOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMigrationOpen, setIsMigrationOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [view, setView] = useState<'list' | 'grid'>(
@@ -444,7 +446,18 @@ export default function App() {
             onClose={() => setIsSettingsOpen(false)}
             onExport={handleExport}
             onImport={handleImport}
+            onMigrate={() => {
+              setIsSettingsOpen(false);
+              setIsMigrationOpen(true);
+            }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Migration Modal */}
+      <AnimatePresence>
+        {isMigrationOpen && (
+          <MigrationModal user={user} onClose={() => setIsMigrationOpen(false)} />
         )}
       </AnimatePresence>
     </div>
