@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { AlertCircle, Image as ImageIcon, RefreshCw, Search, Star, XCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Image as ImageIcon, RefreshCw, RotateCcw, Search, Star, XCircle } from 'lucide-react';
 import {
   collection,
   db,
@@ -18,12 +18,14 @@ import { MediaItem, MediaType, MEDIA_TYPES, UserConfig, normalizeTitle } from '.
 export function MediaForm({
   user,
   existingItems,
+  allTags,
   settings,
   editingItem,
   onClose,
 }: {
   user: User;
   existingItems: MediaItem[];
+  allTags: string[];
   settings: UserConfig | null;
   editingItem: MediaItem | null;
   onClose: () => void;
@@ -36,28 +38,46 @@ export function MediaForm({
   const [externalIds, setExternalIds] = useState<MediaItem['externalIds']>(editingItem?.externalIds || {});
   const [status, setStatus] = useState(editingItem?.status || 'Plan to Read');
   const [isFavorite, setIsFavorite] = useState(editingItem?.isFavorite || false);
+  const [wouldRevisit, setWouldRevisit] = useState(editingItem?.wouldRevisit || false);
+  const [rating, setRating] = useState<number | null>(editingItem?.rating ?? null);
+  const [tags, setTags] = useState<string[]>(editingItem?.tags || []);
+  const [tagInput, setTagInput] = useState('');
   const [notes, setNotes] = useState(editingItem?.notes || '');
   const [duplicateFound, setDuplicateFound] = useState<MediaItem | null>(null);
+
+  const tagSuggestions = useMemo(() => {
+    const q = tagInput.trim().toLowerCase();
+    return allTags
+      .filter(t => !tags.includes(t) && (!q || t.toLowerCase().includes(q)))
+      .slice(0, 8);
+  }, [allTags, tags, tagInput]);
+
+  const addTag = (raw: string) => {
+    const val = raw.trim().toLowerCase().replace(/\s+/g, '-');
+    if (val && !tags.includes(val) && tags.length < 20) {
+      setTags([...tags, val]);
+    }
+    setTagInput('');
+  };
 
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [results, setResults] = useState<MetadataResult[] | null>(null);
 
-  // Duplicate Check
+  // Duplicate Check — compares both directions: the new entry's title AND
+  // alt titles against every existing entry's title and alt titles.
   useEffect(() => {
     if (!title) {
       setDuplicateFound(null);
       return;
     }
-    const normalized = normalizeTitle(title);
+    const ourNames = new Set([title, ...altTitles].map(normalizeTitle).filter(Boolean));
     const found = existingItems.find(m =>
-      m.id !== editingItem?.id && (
-        normalizeTitle(m.title) === normalized ||
-        m.alternativeTitles.some(alt => normalizeTitle(alt) === normalized)
-      )
+      m.id !== editingItem?.id &&
+      [m.title, ...m.alternativeTitles].some(n => ourNames.has(normalizeTitle(n)))
     );
     setDuplicateFound(found || null);
-  }, [title, existingItems, editingItem]);
+  }, [title, altTitles, existingItems, editingItem]);
 
   const handleSearch = async () => {
     if (!title.trim()) return;
@@ -100,9 +120,9 @@ export function MediaForm({
       externalIds,
       status,
       isFavorite,
-      wouldRevisit: editingItem?.wouldRevisit ?? false,
-      rating: editingItem?.rating ?? null,
-      tags: editingItem?.tags ?? [],
+      wouldRevisit,
+      rating,
+      tags,
       notes,
       updatedAt: serverTimestamp(),
     };
@@ -303,6 +323,89 @@ export function MediaForm({
               {isFavorite ? 'Favorited' : 'Mark Favorite'}
             </button>
           </div>
+        </div>
+
+        {/* Rating & Would Revisit */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">Rating</label>
+            <div className="flex items-center gap-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setRating(rating === n ? null : n)}
+                  className="p-0.5"
+                  title={`${n} star${n > 1 ? 's' : ''}`}
+                >
+                  <Star className={cn(
+                    "w-6 h-6 transition-colors",
+                    rating !== null && n <= rating ? "text-amber-400 fill-amber-400" : "text-slate-300"
+                  )} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">Would Revisit</label>
+            <button
+              type="button"
+              onClick={() => setWouldRevisit(!wouldRevisit)}
+              className={cn(
+                "w-full px-4 py-3 border rounded-2xl flex items-center justify-center gap-2 transition-all",
+                wouldRevisit ? "bg-indigo-50 border-indigo-200 text-indigo-600" : "bg-slate-50 border-slate-200 text-slate-400"
+              )}
+            >
+              <RotateCcw className="w-5 h-5" />
+              {wouldRevisit ? "Would read/watch again" : "One and done"}
+            </button>
+          </div>
+        </div>
+
+        {/* Vibe Tags */}
+        <div className="space-y-3">
+          <label className="text-sm font-bold text-slate-700">Vibe Tags</label>
+          <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+            {tags.map(tag => (
+              <span key={tag} className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full text-xs font-medium flex items-center gap-2">
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => setTags(tags.filter(t => t !== tag))}
+                  className="text-indigo-300 hover:text-red-500"
+                >
+                  <XCircle className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              placeholder="cozy, revenge-arc, cried..."
+              className="bg-transparent text-xs outline-none flex-1 min-w-[100px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  addTag(tagInput);
+                }
+              }}
+            />
+          </div>
+          {tagInput.trim() !== '' && tagSuggestions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {tagSuggestions.map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => addTag(t)}
+                  className="px-3 py-1 bg-white border border-slate-200 rounded-full text-xs text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition-all"
+                >
+                  + {t}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Notes */}

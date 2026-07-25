@@ -1,5 +1,5 @@
 import type { Ref } from 'react';
-import { AlertCircle, BookOpen, Clapperboard, Edit2, Star, Trash2, Tv } from 'lucide-react';
+import { AlertCircle, BookOpen, Clapperboard, Edit2, RotateCcw, Star, Trash2, Tv } from 'lucide-react';
 import { motion } from 'motion/react';
 import { MediaItem, MediaType, UserConfig } from '../types';
 
@@ -94,6 +94,13 @@ export function MediaCard({
           <div className="flex items-center gap-3 mb-1">
             <h3 className="text-lg font-bold text-slate-900 truncate">{item.title}</h3>
             {item.isFavorite && <Star className="w-4 h-4 flex-shrink-0 text-amber-400 fill-amber-400" />}
+            {item.wouldRevisit && <RotateCcw className="w-4 h-4 flex-shrink-0 text-indigo-400" />}
+            {item.rating != null && (
+              <span className="flex items-center gap-0.5 text-xs font-bold text-amber-500 flex-shrink-0">
+                {item.rating}
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+              </span>
+            )}
           </div>
 
           {item.alternativeTitles.length > 0 && (
@@ -111,6 +118,9 @@ export function MediaCard({
             </span>
             <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">{item.mediaType}</span>
             {item.year && <span className="text-xs text-slate-400">{item.year}</span>}
+            {item.tags.map(t => (
+              <span key={t} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">{t}</span>
+            ))}
             {item.notes && (
               <span className="text-xs text-slate-400 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
