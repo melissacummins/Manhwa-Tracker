@@ -32,7 +32,7 @@ export function NostalgiaModal({ pool, onClose }: { pool: MediaItem[]; onClose: 
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm"
       />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -40,13 +40,13 @@ export function NostalgiaModal({ pool, onClose }: { pool: MediaItem[]; onClose: 
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
       >
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-500" />
+        <div className="p-6 border-b border-stone-100 flex justify-between items-center">
+          <h2 className="font-serif text-xl font-bold flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-500" />
             Something Nostalgic
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
-            <XCircle className="w-6 h-6 text-slate-400" />
+          <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full">
+            <XCircle className="w-6 h-6 text-stone-400" />
           </button>
         </div>
 
@@ -56,15 +56,15 @@ export function NostalgiaModal({ pool, onClose }: { pool: MediaItem[]; onClose: 
               <img
                 src={pick.coverUrl}
                 alt={pick.title}
-                className="w-40 mx-auto aspect-[2/3] object-cover rounded-2xl border border-slate-200 shadow-md"
+                className="w-40 mx-auto aspect-[2/3] object-cover rounded-2xl border border-stone-200 shadow-md"
               />
             ) : (
-              <div className="w-40 mx-auto aspect-[2/3] bg-slate-100 rounded-2xl border border-slate-200 flex items-center justify-center">
-                <ImageIcon className="w-10 h-10 text-slate-300" />
+              <div className="w-40 mx-auto aspect-[2/3] bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center">
+                <ImageIcon className="w-10 h-10 text-stone-300" />
               </div>
             )}
-            <h3 className="mt-4 text-lg font-bold text-slate-900">{pick.title}</h3>
-            <div className="mt-1 flex items-center justify-center gap-2 text-sm text-slate-400">
+            <h3 className="mt-4 text-lg font-bold text-stone-900">{pick.title}</h3>
+            <div className="mt-1 flex items-center justify-center gap-2 text-sm text-stone-400">
               <span className="uppercase tracking-wider font-semibold text-xs">{pick.mediaType}</span>
               {pick.year && <span>{pick.year}</span>}
               {pick.isFavorite && <Star className="w-4 h-4 text-amber-400 fill-amber-400" />}
@@ -72,18 +72,18 @@ export function NostalgiaModal({ pool, onClose }: { pool: MediaItem[]; onClose: 
             {pick.tags.length > 0 && (
               <div className="mt-3 flex flex-wrap justify-center gap-1.5">
                 {pick.tags.map(t => (
-                  <span key={t} className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">{t}</span>
+                  <span key={t} className="px-2.5 py-0.5 bg-amber-50 text-gold rounded-full text-xs font-medium">{t}</span>
                 ))}
               </div>
             )}
           </div>
         ) : (
-          <div className="p-8 text-center text-slate-500">
+          <div className="p-8 text-center text-stone-500">
             Nothing to pick from yet — mark some favorites or "would revisit" items first.
           </div>
         )}
 
-        <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex gap-3">
+        <div className="p-6 border-t border-stone-100 bg-stone-50/50 flex gap-3">
           <button
             onClick={() => setPick(pickNostalgic(pool, pick?.id))}
             disabled={!pick}

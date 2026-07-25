@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, ChevronDown, ChevronUp, LayoutGrid, List, RefreshCw, Sparkles } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, RefreshCw, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   auth,
@@ -20,8 +20,10 @@ import {
 } from './firebase';
 import { MediaItem, MediaType, MEDIA_TYPES, UserConfig, DEFAULT_STATUSES, normalizeTitle } from './types';
 import { cn } from './lib/utils';
+import { DetailModal } from './components/DetailModal';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
+import { TopShelf } from './components/TopShelf';
 import { StatsBar } from './components/StatsBar';
 import { MediaCard } from './components/MediaCard';
 import { MediaForm } from './components/MediaForm';
@@ -43,7 +45,9 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [detailItem, setDetailItem] = useState<MediaItem | null>(null);
+  const [sortBy, setSortBy] = useState<'title-asc' | 'title-desc' | 'updated' | 'added' | 'year'>('title-asc');
+  const [letterFilter, setLetterFilter] = useState<string>('All');
   const [view, setView] = useState<'list' | 'grid'>(
     () => (localStorage.getItem('cc-view') === 'grid' ? 'grid' : 'list')
   );
@@ -111,21 +115,47 @@ export default function App() {
     [items]
   );
 
+  const readingItems = useMemo(
+    () => items
+      .filter(m => m.status === 'Reading')
+      .sort((a, b) => (b.updatedAt?.toMillis?.() ?? 0) - (a.updatedAt?.toMillis?.() ?? 0)),
+    [items]
+  );
+
+  const excitedItems = useMemo(
+    () => items.filter(m => m.isExcited && m.status !== 'Reading'),
+    [items]
+  );
+
+  const firstLetterOf = (title: string): string => {
+    const c = normalizeTitle(title).charAt(0);
+    return /[a-z]/.test(c) ? c.toUpperCase() : '#';
+  };
+
+  const availableLetters = useMemo(
+    () => new Set(typeFiltered.map(m => firstLetterOf(m.title))),
+    [typeFiltered]
+  );
+
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    let result = typeFiltered.filter(m =>
+    const result = typeFiltered.filter(m =>
       (m.title.toLowerCase().includes(q) ||
        m.alternativeTitles.some(alt => alt.toLowerCase().includes(q))) &&
       (statusFilter === 'All' || m.status === statusFilter) &&
+      (letterFilter === 'All' || firstLetterOf(m.title) === letterFilter) &&
       tagFilter.every(t => (m.tags || []).includes(t))
     );
 
-    if (sortOrder === 'desc') {
-      result = [...result].reverse();
+    // Base order from Firestore is title A→Z
+    switch (sortBy) {
+      case 'title-desc': return [...result].reverse();
+      case 'updated': return [...result].sort((a, b) => (b.updatedAt?.toMillis?.() ?? 0) - (a.updatedAt?.toMillis?.() ?? 0));
+      case 'added': return [...result].sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+      case 'year': return [...result].sort((a, b) => (b.year ?? -Infinity) - (a.year ?? -Infinity));
+      default: return result;
     }
-
-    return result;
-  }, [typeFiltered, searchQuery, statusFilter, tagFilter, sortOrder]);
+  }, [typeFiltered, searchQuery, statusFilter, letterFilter, tagFilter, sortBy]);
 
   // Actions
   const handleDelete = async (id: string) => {
@@ -211,12 +241,12 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
         >
-          <RefreshCw className="w-8 h-8 text-indigo-600" />
+          <RefreshCw className="w-8 h-8 text-gold" />
         </motion.div>
       </div>
     );
@@ -227,20 +257,22 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-stone-50">
       <Header user={user} onOpenSettings={() => setIsSettingsOpen(true)} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <TopShelf reading={readingItems} excited={excitedItems} onOpen={setDetailItem} />
+
         {/* Controls */}
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -transtone-y-1/2 w-5 h-5 text-stone-400" />
             <input
               type="text"
               placeholder="Search by title or alternative name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+              className="w-full pl-10 pr-4 py-3 bg-white border border-stone-200 rounded-2xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
             />
           </div>
 
@@ -248,7 +280,7 @@ export default function App() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500"
+              className="bg-white border border-stone-200 rounded-2xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-amber-500"
             >
               <option value="All">All Statuses</option>
               {settings && Object.keys(settings.statusConfig).map(status => (
@@ -256,25 +288,30 @@ export default function App() {
               ))}
             </select>
 
-            <button
-              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-              className="btn-secondary flex items-center gap-2"
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              className="bg-white border border-stone-200 rounded-2xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-amber-500"
+              title="Sort"
             >
-              {sortOrder === 'asc' ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-              Sort
-            </button>
+              <option value="title-asc">A → Z</option>
+              <option value="title-desc">Z → A</option>
+              <option value="updated">Recently updated</option>
+              <option value="added">Recently added</option>
+              <option value="year">By year</option>
+            </select>
 
-            <div className="flex rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="flex rounded-2xl border border-stone-200 bg-white overflow-hidden">
               <button
                 onClick={() => setViewPersisted('list')}
-                className={cn("px-3 py-3", view === 'list' ? "bg-indigo-50 text-indigo-600" : "text-slate-400 hover:text-slate-600")}
+                className={cn("px-3 py-3", view === 'list' ? "bg-amber-50 text-gold" : "text-stone-400 hover:text-stone-600")}
                 title="List view"
               >
                 <List className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewPersisted('grid')}
-                className={cn("px-3 py-3", view === 'grid' ? "bg-indigo-50 text-indigo-600" : "text-slate-400 hover:text-slate-600")}
+                className={cn("px-3 py-3", view === 'grid' ? "bg-amber-50 text-gold" : "text-stone-400 hover:text-stone-600")}
                 title="Shelf view"
               >
                 <LayoutGrid className="w-4 h-4" />
@@ -284,11 +321,11 @@ export default function App() {
             <button
               onClick={() => setIsNostalgiaOpen(true)}
               disabled={nostalgiaPool.length === 0}
-              className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+              className="btn-wine flex items-center gap-2 disabled:opacity-50"
               title="Pick something nostalgic"
             >
-              <Sparkles className="w-4 h-4 text-indigo-500" />
-              <span className="hidden sm:inline">Nostalgia</span>
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden sm:inline">Pick for me</span>
             </button>
 
             <button
@@ -308,8 +345,8 @@ export default function App() {
             className={cn(
               "px-3 py-1.5 rounded-full text-xs font-bold border transition-all",
               typeFilter === 'All'
-                ? "bg-indigo-600 border-indigo-600 text-white"
-                : "bg-white border-slate-200 text-slate-500 hover:border-indigo-300"
+                ? "bg-gold border-gold text-white"
+                : "bg-white border-stone-200 text-stone-500 hover:border-amber-300"
             )}
           >
             All
@@ -321,8 +358,8 @@ export default function App() {
               className={cn(
                 "px-3 py-1.5 rounded-full text-xs font-bold border transition-all",
                 typeFilter === t.value
-                  ? "bg-indigo-600 border-indigo-600 text-white"
-                  : "bg-white border-slate-200 text-slate-500 hover:border-indigo-300"
+                  ? "bg-gold border-gold text-white"
+                  : "bg-white border-stone-200 text-stone-500 hover:border-amber-300"
               )}
             >
               {t.label}
@@ -330,10 +367,40 @@ export default function App() {
           ))}
         </div>
 
+        {/* Starts-with letter strip */}
+        <div className="flex flex-wrap items-center gap-1 mb-4 -mt-3">
+          <button
+            onClick={() => setLetterFilter('All')}
+            className={cn(
+              "px-2 py-1 rounded-md text-xs font-bold transition-all",
+              letterFilter === 'All' ? "bg-walnut text-cream" : "text-stone-500 hover:bg-stone-100"
+            )}
+          >
+            All
+          </button>
+          {['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(l => (
+            <button
+              key={l}
+              onClick={() => setLetterFilter(letterFilter === l ? 'All' : l)}
+              disabled={!availableLetters.has(l)}
+              className={cn(
+                "w-6 py-1 rounded-md text-xs font-bold transition-all",
+                letterFilter === l
+                  ? "bg-walnut text-cream"
+                  : availableLetters.has(l)
+                    ? "text-gold hover:bg-goldsoft"
+                    : "text-stone-300 cursor-default"
+              )}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
         {/* Tag Filter */}
         {allTags.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 mb-8 -mt-4">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Vibes:</span>
+            <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">Vibes:</span>
             {allTags.map(t => (
               <button
                 key={t}
@@ -343,15 +410,15 @@ export default function App() {
                 className={cn(
                   "px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
                   tagFilter.includes(t)
-                    ? "bg-indigo-50 border-indigo-300 text-indigo-700"
-                    : "bg-white border-slate-200 text-slate-500 hover:border-indigo-300"
+                    ? "bg-amber-50 border-amber-300 text-gold"
+                    : "bg-white border-stone-200 text-stone-500 hover:border-amber-300"
                 )}
               >
                 {t}
               </button>
             ))}
             {tagFilter.length > 0 && (
-              <button onClick={() => setTagFilter([])} className="text-xs text-slate-400 hover:text-slate-600 underline">
+              <button onClick={() => setTagFilter([])} className="text-xs text-stone-400 hover:text-stone-600 underline">
                 clear
               </button>
             )}
@@ -373,6 +440,7 @@ export default function App() {
                 item={item}
                 settings={settings}
                 view={view}
+                onOpen={() => setDetailItem(item)}
                 onEdit={() => {
                   setEditingItem(item);
                   setIsAddModalOpen(true);
@@ -383,12 +451,12 @@ export default function App() {
           </AnimatePresence>
 
           {filteredItems.length === 0 && (
-            <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-8 h-8 text-slate-400" />
+            <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-stone-300">
+              <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className="w-8 h-8 text-stone-400" />
               </div>
-              <h3 className="text-lg font-medium text-slate-900">Nothing here yet</h3>
-              <p className="text-slate-500">Try adjusting your search or filters, or add something new</p>
+              <h3 className="text-lg font-medium text-stone-900">Nothing here yet</h3>
+              <p className="text-stone-500">Try adjusting your search or filters, or add something new</p>
             </div>
           )}
         </div>
@@ -406,7 +474,7 @@ export default function App() {
                 setIsAddModalOpen(false);
                 setEditingItem(null);
               }}
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+              className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm"
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -427,6 +495,26 @@ export default function App() {
               />
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {detailItem && (
+          <DetailModal
+            item={items.find(m => m.id === detailItem.id) || detailItem}
+            settings={settings}
+            onClose={() => setDetailItem(null)}
+            onEdit={() => {
+              setEditingItem(items.find(m => m.id === detailItem.id) || detailItem);
+              setDetailItem(null);
+              setIsAddModalOpen(true);
+            }}
+            onDelete={() => {
+              setDetailItem(null);
+              handleDelete(detailItem.id);
+            }}
+          />
         )}
       </AnimatePresence>
 

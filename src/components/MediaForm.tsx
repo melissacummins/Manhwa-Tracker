@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Image as ImageIcon, RefreshCw, RotateCcw, Search, Star, XCircle } from 'lucide-react';
+import { AlertCircle, Image as ImageIcon, RefreshCw, RotateCcw, Search, Star, XCircle, Zap } from 'lucide-react';
 import {
   collection,
   db,
@@ -39,6 +39,7 @@ export function MediaForm({
   const [status, setStatus] = useState(editingItem?.status || 'Plan to Read');
   const [isFavorite, setIsFavorite] = useState(editingItem?.isFavorite || false);
   const [wouldRevisit, setWouldRevisit] = useState(editingItem?.wouldRevisit || false);
+  const [isExcited, setIsExcited] = useState(editingItem?.isExcited || false);
   const [rating, setRating] = useState<number | null>(editingItem?.rating ?? null);
   const [tags, setTags] = useState<string[]>(editingItem?.tags || []);
   const [tagInput, setTagInput] = useState('');
@@ -121,6 +122,7 @@ export function MediaForm({
       status,
       isFavorite,
       wouldRevisit,
+      isExcited,
       rating,
       tags,
       notes,
@@ -143,17 +145,17 @@ export function MediaForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[90vh]">
-      <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-        <h2 className="text-xl font-bold">{editingItem ? 'Edit Entry' : 'Add New Entry'}</h2>
-        <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
-          <XCircle className="w-6 h-6 text-slate-400" />
+      <div className="p-6 border-b border-stone-100 flex justify-between items-center">
+        <h2 className="font-serif text-xl font-bold">{editingItem ? 'Edit Entry' : 'Add New Entry'}</h2>
+        <button type="button" onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full">
+          <XCircle className="w-6 h-6 text-stone-400" />
         </button>
       </div>
 
       <div className="p-6 space-y-6 overflow-y-auto flex-1">
         {/* Media Type */}
         <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700">Type</label>
+          <label className="text-sm font-bold text-stone-700">Type</label>
           <div className="flex flex-wrap gap-2">
             {MEDIA_TYPES.map(t => (
               <button
@@ -163,8 +165,8 @@ export function MediaForm({
                 className={cn(
                   "px-3 py-1.5 rounded-full text-xs font-bold border transition-all",
                   mediaType === t.value
-                    ? "bg-indigo-600 border-indigo-600 text-white"
-                    : "bg-white border-slate-200 text-slate-500 hover:border-indigo-300"
+                    ? "bg-gold border-gold text-white"
+                    : "bg-white border-stone-200 text-stone-500 hover:border-amber-300"
                 )}
               >
                 {t.label}
@@ -175,7 +177,7 @@ export function MediaForm({
 
         {/* Title + Search */}
         <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700">Title</label>
+          <label className="text-sm font-bold text-stone-700">Title</label>
           <div className="flex gap-2">
             <input
               autoFocus
@@ -190,8 +192,8 @@ export function MediaForm({
                 }
               }}
               className={cn(
-                "flex-1 px-4 py-3 bg-slate-50 border rounded-2xl outline-none transition-all",
-                duplicateFound ? "border-amber-400 ring-2 ring-amber-100" : "border-slate-200 focus:ring-2 focus:ring-indigo-500"
+                "flex-1 px-4 py-3 bg-stone-50 border rounded-2xl outline-none transition-all",
+                duplicateFound ? "border-amber-400 ring-2 ring-amber-100" : "border-stone-200 focus:ring-2 focus:ring-amber-500"
               )}
               placeholder="Enter a title, then search..."
             />
@@ -206,20 +208,20 @@ export function MediaForm({
             </button>
           </div>
           {duplicateFound && (
-            <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 p-3 rounded-xl border border-amber-100">
+            <div className="flex items-center gap-2 text-gold text-sm bg-amber-50 p-3 rounded-xl border border-amber-100">
               <AlertCircle className="w-4 h-4" />
               <span>Duplicate found: <strong>{duplicateFound.title}</strong> is already in your list.</span>
             </div>
           )}
           {searchError && (
-            <div className="text-sm text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200">{searchError}</div>
+            <div className="text-sm text-stone-500 bg-stone-50 p-3 rounded-xl border border-stone-200">{searchError}</div>
           )}
         </div>
 
         {/* Search Results Picker */}
         {results && results.length > 0 && (
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Pick a match</label>
+            <label className="text-sm font-bold text-stone-700">Pick a match</label>
             <div className="flex gap-3 overflow-x-auto pb-2">
               {results.map(r => (
                 <button
@@ -232,15 +234,15 @@ export function MediaForm({
                     <img
                       src={r.coverUrl}
                       alt={r.title}
-                      className="w-28 h-40 object-cover rounded-xl border border-slate-200 group-hover:ring-2 group-hover:ring-indigo-500 transition-all"
+                      className="w-28 h-40 object-cover rounded-xl border border-stone-200 group-hover:ring-2 group-hover:ring-amber-500 transition-all"
                     />
                   ) : (
-                    <div className="w-28 h-40 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center group-hover:ring-2 group-hover:ring-indigo-500 transition-all">
-                      <ImageIcon className="w-8 h-8 text-slate-300" />
+                    <div className="w-28 h-40 bg-stone-100 rounded-xl border border-stone-200 flex items-center justify-center group-hover:ring-2 group-hover:ring-amber-500 transition-all">
+                      <ImageIcon className="w-8 h-8 text-stone-300" />
                     </div>
                   )}
-                  <div className="mt-1 text-xs font-medium text-slate-700 line-clamp-2">{r.title}</div>
-                  {r.year && <div className="text-xs text-slate-400">{r.year}</div>}
+                  <div className="mt-1 text-xs font-medium text-stone-700 line-clamp-2">{r.title}</div>
+                  {r.year && <div className="text-xs text-stone-400">{r.year}</div>}
                 </button>
               ))}
             </div>
@@ -250,11 +252,11 @@ export function MediaForm({
         {/* Cover preview */}
         {coverUrl && (
           <div className="flex items-center gap-3">
-            <img src={coverUrl} alt={title} className="w-16 h-24 object-cover rounded-lg border border-slate-200" />
+            <img src={coverUrl} alt={title} className="w-16 h-24 object-cover rounded-lg border border-stone-200" />
             <button
               type="button"
               onClick={() => setCoverUrl(null)}
-              className="text-xs text-slate-400 hover:text-red-500"
+              className="text-xs text-stone-400 hover:text-red-500"
             >
               Remove cover
             </button>
@@ -263,15 +265,15 @@ export function MediaForm({
 
         {/* Alternative Titles */}
         <div className="space-y-3">
-          <label className="text-sm font-bold text-slate-700">Alternative Titles</label>
-          <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+          <label className="text-sm font-bold text-stone-700">Alternative Titles</label>
+          <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-stone-50 border border-stone-200 rounded-2xl">
             {altTitles.map((alt, i) => (
-              <span key={i} className="px-3 py-1 bg-white border border-slate-200 rounded-full text-xs font-medium flex items-center gap-2">
+              <span key={i} className="px-3 py-1 bg-white border border-stone-200 rounded-full text-xs font-medium flex items-center gap-2">
                 {alt}
                 <button
                   type="button"
                   onClick={() => setAltTitles(altTitles.filter((_, idx) => idx !== i))}
-                  className="text-slate-400 hover:text-red-500"
+                  className="text-stone-400 hover:text-red-500"
                 >
                   <XCircle className="w-3 h-3" />
                 </button>
@@ -298,11 +300,11 @@ export function MediaForm({
         {/* Status & Favorite */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Status</label>
+            <label className="text-sm font-bold text-stone-700">Status</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500"
             >
               {settings && Object.keys(settings.statusConfig).map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -310,13 +312,13 @@ export function MediaForm({
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Favorite</label>
+            <label className="text-sm font-bold text-stone-700">Favorite</label>
             <button
               type="button"
               onClick={() => setIsFavorite(!isFavorite)}
               className={cn(
                 "w-full px-4 py-3 border rounded-2xl flex items-center justify-center gap-2 transition-all",
-                isFavorite ? "bg-amber-50 border-amber-200 text-amber-600" : "bg-slate-50 border-slate-200 text-slate-400"
+                isFavorite ? "bg-amber-50 border-amber-200 text-gold" : "bg-stone-50 border-stone-200 text-stone-400"
               )}
             >
               <Star className={cn("w-5 h-5", isFavorite && "fill-amber-500")} />
@@ -328,8 +330,8 @@ export function MediaForm({
         {/* Rating & Would Revisit */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Rating</label>
-            <div className="flex items-center gap-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl">
+            <label className="text-sm font-bold text-stone-700">Rating</label>
+            <div className="flex items-center gap-1 px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl">
               {[1, 2, 3, 4, 5].map(n => (
                 <button
                   key={n}
@@ -340,20 +342,20 @@ export function MediaForm({
                 >
                   <Star className={cn(
                     "w-6 h-6 transition-colors",
-                    rating !== null && n <= rating ? "text-amber-400 fill-amber-400" : "text-slate-300"
+                    rating !== null && n <= rating ? "text-amber-400 fill-amber-400" : "text-stone-300"
                   )} />
                 </button>
               ))}
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Would Revisit</label>
+            <label className="text-sm font-bold text-stone-700">Would Revisit</label>
             <button
               type="button"
               onClick={() => setWouldRevisit(!wouldRevisit)}
               className={cn(
                 "w-full px-4 py-3 border rounded-2xl flex items-center justify-center gap-2 transition-all",
-                wouldRevisit ? "bg-indigo-50 border-indigo-200 text-indigo-600" : "bg-slate-50 border-slate-200 text-slate-400"
+                wouldRevisit ? "bg-amber-50 border-amber-200 text-gold" : "bg-stone-50 border-stone-200 text-stone-400"
               )}
             >
               <RotateCcw className="w-5 h-5" />
@@ -362,17 +364,30 @@ export function MediaForm({
           </div>
         </div>
 
+        {/* Most Excited */}
+        <button
+          type="button"
+          onClick={() => setIsExcited(!isExcited)}
+          className={cn(
+            "w-full px-4 py-3 border rounded-2xl flex items-center justify-center gap-2 transition-all",
+            isExcited ? "bg-wine/10 border-wine/30 text-wine" : "bg-stone-50 border-stone-200 text-stone-400"
+          )}
+        >
+          <Zap className={cn("w-5 h-5", isExcited && "fill-current")} />
+          {isExcited ? "On the Most Excited shelf" : "Pin to Most Excited For"}
+        </button>
+
         {/* Vibe Tags */}
         <div className="space-y-3">
-          <label className="text-sm font-bold text-slate-700">Vibe Tags</label>
-          <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+          <label className="text-sm font-bold text-stone-700">Vibe Tags</label>
+          <div className="flex flex-wrap gap-2 min-h-[40px] p-3 bg-stone-50 border border-stone-200 rounded-2xl">
             {tags.map(tag => (
-              <span key={tag} className="px-3 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-full text-xs font-medium flex items-center gap-2">
+              <span key={tag} className="px-3 py-1 bg-amber-50 border border-amber-100 text-gold rounded-full text-xs font-medium flex items-center gap-2">
                 {tag}
                 <button
                   type="button"
                   onClick={() => setTags(tags.filter(t => t !== tag))}
-                  className="text-indigo-300 hover:text-red-500"
+                  className="text-amber-300 hover:text-red-500"
                 >
                   <XCircle className="w-3 h-3" />
                 </button>
@@ -399,7 +414,7 @@ export function MediaForm({
                   key={t}
                   type="button"
                   onClick={() => addTag(t)}
-                  className="px-3 py-1 bg-white border border-slate-200 rounded-full text-xs text-slate-500 hover:border-indigo-300 hover:text-indigo-600 transition-all"
+                  className="px-3 py-1 bg-white border border-stone-200 rounded-full text-xs text-stone-500 hover:border-amber-300 hover:text-gold transition-all"
                 >
                   + {t}
                 </button>
@@ -410,17 +425,17 @@ export function MediaForm({
 
         {/* Notes */}
         <div className="space-y-2">
-          <label className="text-sm font-bold text-slate-700">Notes</label>
+          <label className="text-sm font-bold text-stone-700">Notes</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px] resize-none"
+            className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500 min-h-[100px] resize-none"
             placeholder="Add your thoughts, review, or progress..."
           />
         </div>
       </div>
 
-      <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex gap-3">
+      <div className="p-6 border-t border-stone-100 bg-stone-50/50 flex gap-3">
         <button
           type="button"
           onClick={onClose}
