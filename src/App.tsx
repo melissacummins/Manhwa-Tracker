@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, ChevronDown, ChevronUp, LayoutGrid, List, RefreshCw } from 'lucide-react';
+import { Plus, Search, ChevronDown, ChevronUp, LayoutGrid, List, RefreshCw, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   auth,
@@ -25,6 +25,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { StatsBar } from './components/StatsBar';
 import { MediaCard } from './components/MediaCard';
 import { MediaForm } from './components/MediaForm';
+import { NostalgiaModal } from './components/NostalgiaModal';
 import { SettingsModal } from './components/SettingsModal';
 
 export default function App() {
@@ -35,7 +36,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [typeFilter, setTypeFilter] = useState<MediaType | 'All'>('All');
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isNostalgiaOpen, setIsNostalgiaOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -96,12 +99,23 @@ export default function App() {
     [items, typeFilter]
   );
 
+  const allTags = useMemo(
+    () => Array.from(new Set(items.flatMap(m => m.tags || []))).sort(),
+    [items]
+  );
+
+  const nostalgiaPool = useMemo(
+    () => items.filter(m => m.isFavorite || m.wouldRevisit),
+    [items]
+  );
+
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase();
     let result = typeFiltered.filter(m =>
       (m.title.toLowerCase().includes(q) ||
        m.alternativeTitles.some(alt => alt.toLowerCase().includes(q))) &&
-      (statusFilter === 'All' || m.status === statusFilter)
+      (statusFilter === 'All' || m.status === statusFilter) &&
+      tagFilter.every(t => (m.tags || []).includes(t))
     );
 
     if (sortOrder === 'desc') {
@@ -109,7 +123,7 @@ export default function App() {
     }
 
     return result;
-  }, [typeFiltered, searchQuery, statusFilter, sortOrder]);
+  }, [typeFiltered, searchQuery, statusFilter, tagFilter, sortOrder]);
 
   // Actions
   const handleDelete = async (id: string) => {
@@ -266,6 +280,16 @@ export default function App() {
             </div>
 
             <button
+              onClick={() => setIsNostalgiaOpen(true)}
+              disabled={nostalgiaPool.length === 0}
+              className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+              title="Pick something nostalgic"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-500" />
+              <span className="hidden sm:inline">Nostalgia</span>
+            </button>
+
+            <button
               onClick={() => setIsAddModalOpen(true)}
               className="btn-primary flex items-center gap-2"
             >
@@ -303,6 +327,34 @@ export default function App() {
             </button>
           ))}
         </div>
+
+        {/* Tag Filter */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-8 -mt-4">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Vibes:</span>
+            {allTags.map(t => (
+              <button
+                key={t}
+                onClick={() => setTagFilter(prev =>
+                  prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                )}
+                className={cn(
+                  "px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+                  tagFilter.includes(t)
+                    ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                    : "bg-white border-slate-200 text-slate-500 hover:border-indigo-300"
+                )}
+              >
+                {t}
+              </button>
+            ))}
+            {tagFilter.length > 0 && (
+              <button onClick={() => setTagFilter([])} className="text-xs text-slate-400 hover:text-slate-600 underline">
+                clear
+              </button>
+            )}
+          </div>
+        )}
 
         <StatsBar items={typeFiltered} settings={settings} />
 
@@ -363,6 +415,7 @@ export default function App() {
               <MediaForm
                 user={user}
                 existingItems={items}
+                allTags={allTags}
                 settings={settings}
                 editingItem={editingItem}
                 onClose={() => {
@@ -372,6 +425,13 @@ export default function App() {
               />
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Nostalgia Modal */}
+      <AnimatePresence>
+        {isNostalgiaOpen && (
+          <NostalgiaModal pool={nostalgiaPool} onClose={() => setIsNostalgiaOpen(false)} />
         )}
       </AnimatePresence>
 
