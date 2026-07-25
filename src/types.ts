@@ -1,18 +1,35 @@
-export interface Manhwa {
+export type MediaType = 'manhwa' | 'manhua' | 'manga' | 'webtoon' | 'anime' | 'movie' | 'tv';
+
+export const MEDIA_TYPES: { value: MediaType; label: string }[] = [
+  { value: 'manhwa', label: 'Manhwa' },
+  { value: 'manhua', label: 'Manhua' },
+  { value: 'manga', label: 'Manga' },
+  { value: 'webtoon', label: 'Webtoon' },
+  { value: 'anime', label: 'Anime' },
+  { value: 'movie', label: 'Movie' },
+  { value: 'tv', label: 'TV Show' },
+];
+
+export interface MediaItem {
   id: string;
+  mediaType: MediaType;
   title: string;
   alternativeTitles: string[];
+  coverUrl: string | null;
   status: string;
   isFavorite: boolean;
+  wouldRevisit: boolean;
+  rating: number | null;
+  tags: string[];
+  year: number | null;
+  externalIds: { anilistId?: number; tmdbId?: number };
   notes: string;
   createdAt: any;
   updatedAt: any;
-  userId: string;
 }
 
-export interface UserSettings {
+export interface UserConfig {
   statusConfig: Record<string, string>;
-  userId: string;
 }
 
 export const DEFAULT_STATUSES = {
@@ -22,3 +39,14 @@ export const DEFAULT_STATUSES = {
   'Dropped': '#ef4444', // Red
   'Plan to Read': '#6366f1', // Indigo
 };
+
+// Normalize a title for duplicate comparison: lowercase, Unicode-normalize,
+// strip punctuation, collapse whitespace.
+export function normalizeTitle(s: string): string {
+  return s
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

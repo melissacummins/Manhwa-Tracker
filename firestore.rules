@@ -2,30 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: manhwas
-    // Document ID: auto-generated
-    // Fields:
-    //   - title: string (required, 1-255 chars)
-    //   - alternativeTitles: list of strings (optional, max 10 items)
-    //   - status: string (required, 1-50 chars)
-    //   - isFavorite: bool (optional)
-    //   - notes: string (optional, max 5000 chars)
-    //   - createdAt: timestamp (required)
-    //   - updatedAt: timestamp (required)
-    //   - userId: string (required, matches auth.uid)
-    //
-    // Collection: userSettings
-    // Document ID: matches auth.uid
-    // Fields:
-    //   - statusConfig: map (optional, status names to hex strings)
-    //   - userId: string (required, matches auth.uid)
-    //
-    // ===============================================================
-
-    // ===============================================================
     // Helper Functions
     // ===============================================================
     function isAuthenticated() {
@@ -40,6 +16,11 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == resource.data.userId;
     }
 
+    // ===============================================================
+    // LEGACY collections (pre-migration data — kept readable until the
+    // owner verifies the migration and deletes them manually).
+    // ===============================================================
+
     function isValidManhwa(data) {
       return data.title is string && data.title.size() >= 1 && data.title.size() <= 255 &&
              data.status is string && data.status.size() >= 1 && data.status.size() <= 50 &&
@@ -53,10 +34,6 @@ service cloud.firestore {
              (!('statusConfig' in data) || data.statusConfig is map);
     }
 
-    // ===============================================================
-    // Rules
-    // ===============================================================
-
     match /manhwas/{manhwaId} {
       allow read: if isDocOwner();
       allow create: if isAuthenticated() && isValidManhwa(request.resource.data);
@@ -68,6 +45,51 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUserSettings(request.resource.data);
       allow update: if isOwner(userId) && isValidUserSettings(request.resource.data);
+    }
+
+    // ===============================================================
+    // Command Center data model
+    //
+    // users/{uid}/media/{itemId}
+    //   - mediaType: one of manhwa|manhua|manga|webtoon|anime|movie|tv
+    //   - title: string (1-255 chars)
+    //   - alternativeTitles: list (max 25)
+    //   - coverUrl: string or null
+    //   - status: string (1-50 chars)
+    //   - isFavorite, wouldRevisit: bool
+    //   - rating: number 1-5 or null
+    //   - tags: list of strings (max 20)
+    //   - year: number or null
+    //   - externalIds: map
+    //   - notes: string (max 5000)
+    //   - createdAt, updatedAt: timestamp
+    //
+    // users/{uid}/settings/config
+    //   - statusConfig: map of status name -> hex color
+    // ===============================================================
+
+    function isValidMediaItem(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 255 &&
+             data.status is string && data.status.size() >= 1 && data.status.size() <= 50 &&
+             data.mediaType in ['manhwa', 'manhua', 'manga', 'webtoon', 'anime', 'movie', 'tv'] &&
+             data.alternativeTitles is list && data.alternativeTitles.size() <= 25 &&
+             (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
+             (!('rating' in data) || data.rating == null || (data.rating is number && data.rating >= 1 && data.rating <= 5)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000));
+    }
+
+    function isValidUserConfig(data) {
+      return !('statusConfig' in data) || data.statusConfig is map;
+    }
+
+    match /users/{uid}/media/{itemId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidMediaItem(request.resource.data);
+    }
+
+    match /users/{uid}/settings/{docId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && isValidUserConfig(request.resource.data);
     }
   }
 }
