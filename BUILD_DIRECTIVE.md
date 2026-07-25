@@ -19,7 +19,7 @@
 - Owner's definition of favorite: *finished it and would reread it* → migration sets `wouldRevisit = isFavorite`.
 - Live titles no longer contain `" / "` separators (an earlier cleanup split them into `alternativeTitles`). Keep the `" / "`-splitting rule in the migration anyway as a defensive no-op; slash **without** surrounding spaces (e.g. `1/24 Romance`) is part of a title — never split on it.
 - 1,491 of 1,525 docs have `alternativeTitles` (5,914 strings total, max 10 per doc). **Some are corrupted fragments from the legacy AI comma-splitting bug** — verified examples: `"Father I Don't Want To Get Married"` carries alt `"Dad"` (from *"Dad, I Don't Want To Get Married"*), `"Hey Boss, I Am Your New Wife"` carries `"CEO"`, one title carries the fragment `"I"`. Many short/non-Latin alts are legitimate native-script titles (e.g. `"하이브"` for *Hive*) — never filter by length or script; the fix is the replace-on-match rule in §1.6 step 5.
-- The `notes` UI is being removed, but **3 live docs have real notes** (e.g. *"This was cancelled 😭"*) — they must be carried into the new docs' `notes` field verbatim.
+- The `notes` field **stays**, both in data and UI (keep the existing textarea in the form). 3 live docs have real notes (e.g. *"This was cancelled 😭"*) — carry them verbatim.
 - **17 duplicate pairs** exist under normalized-title comparison (all exactly ×2); dedupe (§1.6 step 4) must merge them and the report must list all 17.
 - A verified full export (`manhwatrackerbackup1525items.json`, 2026-07-25) exists as the reconciliation baseline; the dry-run's input count must match it modulo items the owner adds after that date.
 - `vite.config.ts` currently injects `process.env.GEMINI_API_KEY` via `define` — remove that in Phase 0. Use `import.meta.env.VITE_TMDB_API_KEY` for TMDB (Vite exposes `VITE_`-prefixed vars natively; no `define` needed).
@@ -71,7 +71,7 @@ interface MediaItem {
   tags: string[];                // Phase 2 UI
   year: number | null;
   externalIds: { anilistId?: number; tmdbId?: number };
-  notes?: string;                // legacy carry-over only; no UI
+  notes: string;                 // free-text notes (existing textarea UI stays)
   createdAt: Timestamp;          // preserve original on migration; serverTimestamp() for new
   updatedAt: Timestamp;
 }
@@ -141,7 +141,7 @@ Steps, in order:
 3. **Title splitting:** split `title` on the exact separator `" / "` → first segment is `title`, remaining segments are appended to `alternativeTitles` (dedupe case-insensitively).
 4. **Dedupe:** group docs by normalized title (lowercase, Unicode-normalize, strip punctuation, collapse whitespace), including cross-matches via alternative titles. Merge groups: union alt titles and tags, OR the favorite flags, keep the earliest `createdAt`, and keep the "most advanced" status by this precedence: `Completed > Reading > On Hold > Plan to Read > Dropped`. Log every merge in the report.
 5. **AniList enrichment:** for each item, search AniList (type MANGA) by primary title. **Accept a match only if** a normalized title/synonym from the result exactly equals one of the item's normalized titles (primary or alternative). On match: **replace** `alternativeTitles` with the AniList set (romaji/english/native variants that differ from the primary title, plus `synonyms`; cap 25) — replacement, not union, is deliberate: most existing alts came from the buggy AI fetch and include comma-split fragments (`"Dad"`, `"CEO"`, `"I"`), and replacing drops the garbage while restoring authoritative names. Record every dropped pre-existing alt string in the report's `droppedAltTitles` map so the owner can restore any she added by hand. Also set `coverUrl`, `year`, `externalIds.anilistId`, and `mediaType` from `countryOfOrigin` (KR→manhwa, CN→manhua, JP→manga; anything else→manhwa). On no confident match: keep the item's existing titles and alts unchanged, `mediaType: 'manhwa'`, `coverUrl: null`, add to report's `unmatched` list. **Rate limit: max 1 request per 2.5 seconds** with exponential backoff on HTTP 429 (honor `Retry-After`). ~1,500 items ≈ 60–70 minutes; print progress every 25 items and write partial state so an interrupted run can resume (cache lookups in `backups/anilist-cache.json`).
-6. **Field mapping:** `wouldRevisit = isFavorite`; `rating = null`; `tags = []`; preserve `createdAt`/`updatedAt`; carry `notes` only if non-empty.
+6. **Field mapping:** `wouldRevisit = isFavorite`; `rating = null`; `tags = []`; preserve `createdAt`/`updatedAt`; carry `notes` verbatim (empty string when absent).
 7. **Write:** batched writes (≤500/batch) to `users/{uid}/media`. Copy `userSettings/{uid}.statusConfig` → `users/{uid}/settings/config`. Old collections untouched (constraint 4).
 8. **Report:** write `backups/migration-report.json` — counts in/out, merges performed, unmatched titles, needsAttention docs — and print a human-readable summary.
 
@@ -162,7 +162,7 @@ Update export to the new schema (pretty-printed JSON, filename `command-center-b
 3. **Would-revisit toggle** on card + form (icon: `RotateCcw` or similar), independent of favorite.
 4. **"Pick something nostalgic" button** in the header: selects a random item where `isFavorite || wouldRevisit`, weighted toward the least-recently-updated ones; presents it as a modal with the cover large, title, year, tags, and buttons: "Pick again" / "This one!". No AI involved — it's a weighted random pick.
 5. **Smarter duplicate detection** in the add form: normalize as §1.6 step 4, compare both directions (new title vs. existing titles+alts, new alts vs. existing titles).
-6. Remove the notes textarea from the form (data field remains for legacy carry-over).
+6. Cards with a non-empty note keep the existing "Has notes" indicator; notes remain editable in the form.
 
 **Acceptance:** tags filter correctly; nostalgia button never returns an item lacking both flags; adding "Solo Leveling!" warns when "Solo Leveling" exists.
 
