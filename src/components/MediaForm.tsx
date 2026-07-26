@@ -192,7 +192,7 @@ export function MediaForm({
                 }
               }}
               className={cn(
-                "flex-1 px-4 py-3 bg-stone-50 border rounded-2xl outline-none transition-all",
+                "flex-1 min-w-0 px-4 py-3 bg-stone-50 border rounded-2xl outline-none transition-all",
                 duplicateFound ? "border-amber-400 ring-2 ring-amber-100" : "border-stone-200 focus:ring-2 focus:ring-amber-500"
               )}
               placeholder="Enter a title, then search..."
@@ -201,10 +201,11 @@ export function MediaForm({
               type="button"
               onClick={handleSearch}
               disabled={searching || !title.trim()}
-              className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+              className="btn-secondary flex-shrink-0 flex items-center gap-2 disabled:opacity-50"
+              title="Search"
             >
               {searching ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              Search
+              <span className="hidden sm:inline">Search</span>
             </button>
           </div>
           {duplicateFound && (
@@ -298,7 +299,7 @@ export function MediaForm({
         </div>
 
         {/* Status & Favorite */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-bold text-stone-700">Status</label>
             <select
@@ -328,10 +329,10 @@ export function MediaForm({
         </div>
 
         {/* Rating & Would Revisit */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-bold text-stone-700">Rating</label>
-            <div className="flex items-center gap-1 px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl">
+            <div className="flex items-center justify-center sm:justify-start gap-1 px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl">
               {[1, 2, 3, 4, 5].map(n => (
                 <button
                   key={n}
