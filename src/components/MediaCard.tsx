@@ -1,6 +1,4 @@
-import type { Ref } from 'react';
 import { AlertCircle, BookOpen, Clapperboard, Edit2, RotateCcw, Star, Trash2, Tv } from 'lucide-react';
-import { motion } from 'motion/react';
 import { MediaItem, MediaType, UserConfig } from '../types';
 
 function TypeIcon({ mediaType, className }: { mediaType: MediaType; className?: string }) {
@@ -20,6 +18,8 @@ function Cover({ item, className }: { item: MediaItem; className: string }) {
   );
 }
 
+// Plain divs on purpose: with ~1,400 cards, per-card layout animation makes
+// every keystroke re-animate the whole shelf, which crawls on phones.
 export function MediaCard({
   item,
   settings,
@@ -27,7 +27,6 @@ export function MediaCard({
   onOpen,
   onEdit,
   onDelete,
-  ref,
 }: {
   item: MediaItem;
   settings: UserConfig | null;
@@ -35,18 +34,12 @@ export function MediaCard({
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  ref?: Ref<HTMLDivElement>;
 }) {
   const statusColor = settings?.statusConfig[item.status] || '#94a3b8';
 
   if (view === 'grid') {
     return (
-      <motion.div
-        ref={ref}
-        layout
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
+      <div
         onClick={onOpen}
         className="glass-card overflow-hidden group hover:shadow-md transition-all flex flex-col cursor-pointer"
       >
@@ -78,17 +71,12 @@ export function MediaCard({
             {item.year && <span className="text-xs text-stone-400">{item.year}</span>}
           </div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      ref={ref}
-      layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+    <div
       onClick={onOpen}
       className="glass-card p-4 sm:p-6 flex items-center justify-between gap-4 group hover:shadow-md transition-all cursor-pointer"
     >
@@ -149,6 +137,6 @@ export function MediaCard({
           <Trash2 className="w-5 h-5" />
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 }
