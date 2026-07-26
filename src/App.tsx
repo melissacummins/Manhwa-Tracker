@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import { Plus, Search, LayoutGrid, List, RefreshCw, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -31,23 +31,50 @@ import { MigrationModal } from './components/MigrationModal';
 import { NostalgiaModal } from './components/NostalgiaModal';
 import { SettingsModal } from './components/SettingsModal';
 
+// Restore browsing state after a reload — phone browsers discard background
+// tabs, and without this the search and filters reset every time you return.
+const UI_STATE_KEY = 'cc-ui-state';
+function loadUiState(): Record<string, any> {
+  try {
+    return JSON.parse(sessionStorage.getItem(UI_STATE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+const PAGE_SIZE = 120;
+
 export default function App() {
+  const savedUi = useMemo(loadUiState, []);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<MediaItem[]>([]);
   const [settings, setSettings] = useState<UserConfig | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
-  const [typeFilter, setTypeFilter] = useState<MediaType | 'All'>('All');
-  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>(savedUi.searchQuery || '');
+  const [statusFilter, setStatusFilter] = useState<string>(savedUi.statusFilter || 'All');
+  const [typeFilter, setTypeFilter] = useState<MediaType | 'All'>(savedUi.typeFilter || 'All');
+  const [tagFilter, setTagFilter] = useState<string[]>(Array.isArray(savedUi.tagFilter) ? savedUi.tagFilter : []);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isNostalgiaOpen, setIsNostalgiaOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null);
-  const [sortBy, setSortBy] = useState<'title-asc' | 'title-desc' | 'updated' | 'added' | 'year'>('title-asc');
-  const [letterFilter, setLetterFilter] = useState<string>('All');
+  const [sortBy, setSortBy] = useState<'title-asc' | 'title-desc' | 'updated' | 'added' | 'year'>(savedUi.sortBy || 'title-asc');
+  const [letterFilter, setLetterFilter] = useState<string>(savedUi.letterFilter || 'All');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Filtering waits for a typing pause instead of running on every keystroke
+  const deferredQuery = useDeferredValue(searchQuery);
+
+  // Persist browsing state so a tab reload puts you back where you were
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({
+        searchQuery, statusFilter, typeFilter, tagFilter, sortBy, letterFilter,
+      }));
+    } catch { /* storage full or unavailable — browsing still works */ }
+  }, [searchQuery, statusFilter, typeFilter, tagFilter, sortBy, letterFilter]);
   const [view, setView] = useState<'list' | 'grid'>(
     () => (localStorage.getItem('cc-view') === 'grid' ? 'grid' : 'list')
   );
@@ -137,11 +164,20 @@ export default function App() {
     [typeFiltered]
   );
 
+  // Precomputed lowercase haystack per item — rebuilt only when data changes,
+  // so keystrokes don't pay the toLowerCase cost across 5,000+ alt titles.
+  const searchIndex = useMemo(() => {
+    const index = new Map<string, string>();
+    for (const m of items) {
+      index.set(m.id, [m.title, ...m.alternativeTitles].join('\n').toLowerCase());
+    }
+    return index;
+  }, [items]);
+
   const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     const result = typeFiltered.filter(m =>
-      (m.title.toLowerCase().includes(q) ||
-       m.alternativeTitles.some(alt => alt.toLowerCase().includes(q))) &&
+      (!q || (searchIndex.get(m.id) || '').includes(q)) &&
       (statusFilter === 'All' || m.status === statusFilter) &&
       (letterFilter === 'All' || firstLetterOf(m.title) === letterFilter) &&
       tagFilter.every(t => (m.tags || []).includes(t))
@@ -155,7 +191,14 @@ export default function App() {
       case 'year': return [...result].sort((a, b) => (b.year ?? -Infinity) - (a.year ?? -Infinity));
       default: return result;
     }
-  }, [typeFiltered, searchQuery, statusFilter, letterFilter, tagFilter, sortBy]);
+  }, [typeFiltered, deferredQuery, searchIndex, statusFilter, letterFilter, tagFilter, sortBy]);
+
+  // Show results in pages — rendering all ~1,400 cards at once is what made
+  // browsing feel slow, especially on phones.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [deferredQuery, statusFilter, typeFilter, letterFilter, tagFilter, sortBy]);
+  const visibleItems = useMemo(() => filteredItems.slice(0, visibleCount), [filteredItems, visibleCount]);
 
   // Actions
   const handleDelete = async (id: string) => {
@@ -433,22 +476,31 @@ export default function App() {
             ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"
             : "grid grid-cols-1 gap-4"
         )}>
-          <AnimatePresence mode="popLayout">
-            {filteredItems.map((item) => (
-              <MediaCard
-                key={item.id}
-                item={item}
-                settings={settings}
-                view={view}
-                onOpen={() => setDetailItem(item)}
-                onEdit={() => {
-                  setEditingItem(item);
-                  setIsAddModalOpen(true);
-                }}
-                onDelete={() => handleDelete(item.id)}
-              />
-            ))}
-          </AnimatePresence>
+          {visibleItems.map((item) => (
+            <MediaCard
+              key={item.id}
+              item={item}
+              settings={settings}
+              view={view}
+              onOpen={() => setDetailItem(item)}
+              onEdit={() => {
+                setEditingItem(item);
+                setIsAddModalOpen(true);
+              }}
+              onDelete={() => handleDelete(item.id)}
+            />
+          ))}
+
+          {filteredItems.length > visibleCount && (
+            <div className="col-span-full flex justify-center pt-2">
+              <button
+                onClick={() => setVisibleCount(c => c + PAGE_SIZE * 2)}
+                className="btn-secondary px-8"
+              >
+                Show more ({filteredItems.length - visibleCount} remaining)
+              </button>
+            </div>
+          )}
 
           {filteredItems.length === 0 && (
             <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-stone-300">
