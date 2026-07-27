@@ -179,24 +179,40 @@ export function MediaForm({
         <div className="space-y-2">
           <label className="text-sm font-bold text-stone-700">Title</label>
           <div className="flex gap-2">
-            <input
-              autoFocus
-              required
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !searching) {
-                  e.preventDefault();
-                  handleSearch();
-                }
-              }}
-              className={cn(
-                "flex-1 min-w-0 px-4 py-3 bg-stone-50 border rounded-2xl outline-none transition-all",
-                duplicateFound ? "border-amber-400 ring-2 ring-amber-100" : "border-stone-200 focus:ring-2 focus:ring-amber-500"
+            <div className="relative flex-1 min-w-0">
+              <input
+                autoFocus
+                required
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !searching) {
+                    e.preventDefault();
+                    handleSearch();
+                  }
+                }}
+                className={cn(
+                  "w-full px-4 pr-10 py-3 bg-stone-50 border rounded-2xl outline-none transition-all",
+                  duplicateFound ? "border-amber-400 ring-2 ring-amber-100" : "border-stone-200 focus:ring-2 focus:ring-amber-500"
+                )}
+                placeholder="Enter a title, then search..."
+              />
+              {title && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTitle('');
+                    setResults(null);
+                    setSearchError(null);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  title="Clear title and search again"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
               )}
-              placeholder="Enter a title, then search..."
-            />
+            </div>
             <button
               type="button"
               onClick={handleSearch}
