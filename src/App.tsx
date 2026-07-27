@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useDeferredValue } from 'react';
-import { Plus, Search, LayoutGrid, List, RefreshCw, Sparkles } from 'lucide-react';
+import { Plus, Search, LayoutGrid, List, RefreshCw, Sparkles, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   auth,
@@ -309,14 +309,23 @@ export default function App() {
         {/* Controls */}
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -transtone-y-1/2 w-5 h-5 text-stone-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
             <input
               type="text"
               placeholder="Search by title or alternative name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-stone-200 rounded-2xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
+              className="w-full pl-10 pr-11 py-3 bg-white border border-stone-200 rounded-2xl focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all outline-none"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                title="Clear search"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            )}
           </div>
 
           <div className="flex gap-2 flex-wrap">
