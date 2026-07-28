@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useDeferredValue } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react';
 import { Plus, Search, LayoutGrid, List, RefreshCw, Sparkles, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -30,6 +30,9 @@ import { MediaForm } from './components/MediaForm';
 import { MigrationModal } from './components/MigrationModal';
 import { NostalgiaModal } from './components/NostalgiaModal';
 import { SettingsModal } from './components/SettingsModal';
+import { SyncModal } from './components/SyncModal';
+import { captureTokenFromHash } from './lib/anilistPush';
+import { syncFromMal } from './lib/malSync';
 
 // Restore browsing state after a reload — phone browsers discard background
 // tabs, and without this the search and filters reset every time you return.
@@ -58,6 +61,8 @@ export default function App() {
   const [isNostalgiaOpen, setIsNostalgiaOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
+  // Open the sync panel when returning from AniList's authorize screen
+  const [isSyncOpen, setIsSyncOpen] = useState(() => captureTokenFromHash());
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null);
   const [sortBy, setSortBy] = useState<'title-asc' | 'title-desc' | 'updated' | 'added' | 'year'>(savedUi.sortBy || 'title-asc');
@@ -125,6 +130,17 @@ export default function App() {
       unsubscribeMedia();
     };
   }, [user]);
+
+  // Daily MAL auto-pull: once per session, if a username is saved and the
+  // last sync is over a day old. Silent — failures just wait for tomorrow.
+  const autoSyncAttempted = useRef(false);
+  useEffect(() => {
+    if (autoSyncAttempted.current || !user || !settings?.malUsername || items.length === 0) return;
+    const dayMs = 24 * 60 * 60 * 1000;
+    if (Date.now() - (settings.lastMalSync ?? 0) < dayMs) return;
+    autoSyncAttempted.current = true;
+    syncFromMal(user.uid, settings.malUsername, items).catch(() => { /* retry next visit */ });
+  }, [user, settings, items]);
 
   // Filtering and Sorting
   const typeFiltered = useMemo(
@@ -599,6 +615,22 @@ export default function App() {
               setIsSettingsOpen(false);
               setIsMigrationOpen(true);
             }}
+            onSync={() => {
+              setIsSettingsOpen(false);
+              setIsSyncOpen(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sync Modal */}
+      <AnimatePresence>
+        {isSyncOpen && (
+          <SyncModal
+            user={user}
+            items={items}
+            settings={settings}
+            onClose={() => setIsSyncOpen(false)}
           />
         )}
       </AnimatePresence>

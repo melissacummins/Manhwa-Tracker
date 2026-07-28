@@ -23,7 +23,7 @@ export interface MediaItem {
   rating: number | null;
   tags: string[];
   year: number | null;
-  externalIds: { anilistId?: number; tmdbId?: number };
+  externalIds: { anilistId?: number; tmdbId?: number; malId?: number };
   notes: string;
   createdAt: any;
   updatedAt: any;
@@ -31,6 +31,8 @@ export interface MediaItem {
 
 export interface UserConfig {
   statusConfig: Record<string, string>;
+  malUsername?: string;
+  lastMalSync?: number; // epoch millis of the last successful MAL pull
 }
 
 export const DEFAULT_STATUSES = {
