@@ -6,7 +6,7 @@
 // score for every entry that has (or can resolve) an AniList id. Entries are
 // skipped when they haven't changed since the last successful push.
 
-import { MediaItem } from '../types';
+import { MediaItem, typeGroupOf } from '../types';
 
 const TOKEN_KEY = 'cc-anilist-token';
 const PUSHED_KEY = 'cc-anilist-pushed'; // itemId -> updatedAt millis at last push
@@ -120,11 +120,14 @@ export async function pushToAniList(
     try { localStorage.setItem(PUSHED_KEY, JSON.stringify(pushedMap)); } catch { /* non-fatal */ }
   };
 
-  // Everything with an AniList id, or an anime with a MAL id we can resolve
-  const eligible = items.filter(m =>
-    STATUS_MAP[m.status] &&
-    (m.externalIds?.anilistId || (m.mediaType === 'anime' && m.externalIds?.malId))
-  );
+  // Everything with an AniList id, or anything with a MAL id we can resolve
+  // (movies/TV live on TMDB, not AniList — they're not pushed)
+  const eligible = items.filter(m => {
+    const group = typeGroupOf(m.mediaType);
+    return STATUS_MAP[m.status] &&
+      (group === 'anime' || group === 'comics') &&
+      (m.externalIds?.anilistId || m.externalIds?.malId);
+  });
 
   const result: PushResult = { pushed: 0, skipped: 0, failed: 0, failures: [], tokenExpired: false };
 
@@ -150,9 +153,11 @@ export async function pushToAniList(
     try {
       let mediaId = item.externalIds?.anilistId;
       if (!mediaId && item.externalIds?.malId) {
+        // MAL anime ids and manga ids are separate spaces — resolve with the right type
+        const anilistType = typeGroupOf(item.mediaType) === 'anime' ? 'ANIME' : 'MANGA';
         const data = await anilistGraphQL(token,
-          `query ($idMal: Int) { Media(idMal: $idMal, type: ANIME) { id } }`,
-          { idMal: item.externalIds.malId });
+          `query ($idMal: Int, $type: MediaType) { Media(idMal: $idMal, type: $type) { id } }`,
+          { idMal: item.externalIds.malId, type: anilistType });
         mediaId = data?.Media?.id;
       }
       if (!mediaId) {
