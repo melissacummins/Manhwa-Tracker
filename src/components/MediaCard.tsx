@@ -1,5 +1,5 @@
 import { AlertCircle, BookOpen, Clapperboard, Edit2, RotateCcw, Star, Trash2, Tv } from 'lucide-react';
-import { MediaItem, MediaType, UserConfig } from '../types';
+import { MediaItem, MediaType, UserConfig, displayStatus, typeLabel } from '../types';
 
 function TypeIcon({ mediaType, className }: { mediaType: MediaType; className?: string }) {
   if (mediaType === 'movie') return <Clapperboard className={className} />;
@@ -66,7 +66,7 @@ export function MediaCard({
               className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm"
               style={{ backgroundColor: statusColor }}
             >
-              {item.status}
+              {displayStatus(item.status, item.mediaType)}
             </span>
             {item.year && <span className="text-xs text-stone-400">{item.year}</span>}
           </div>
@@ -106,9 +106,9 @@ export function MediaCard({
               className="px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm"
               style={{ backgroundColor: statusColor }}
             >
-              {item.status}
+              {displayStatus(item.status, item.mediaType)}
             </span>
-            <span className="text-xs text-stone-400 uppercase tracking-wider font-semibold">{item.mediaType}</span>
+            <span className="text-xs text-stone-400 uppercase tracking-wider font-semibold">{typeLabel(item.mediaType)}</span>
             {item.year && <span className="text-xs text-stone-400">{item.year}</span>}
             {item.tags.map(t => (
               <span key={t} className="px-2 py-0.5 bg-amber-50 text-gold rounded-full text-xs font-medium">{t}</span>

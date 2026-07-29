@@ -18,7 +18,7 @@ import {
   handleFirestoreError,
   OperationType
 } from './firebase';
-import { MediaItem, MediaType, MEDIA_TYPES, UserConfig, DEFAULT_STATUSES, normalizeTitle } from './types';
+import { MediaItem, TypeGroup, TYPE_GROUPS, typeGroupOf, UserConfig, DEFAULT_STATUSES, normalizeTitle } from './types';
 import { cn } from './lib/utils';
 import { DetailModal } from './components/DetailModal';
 import { Header } from './components/Header';
@@ -55,7 +55,13 @@ export default function App() {
   const [settings, setSettings] = useState<UserConfig | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>(savedUi.searchQuery || '');
   const [statusFilter, setStatusFilter] = useState<string>(savedUi.statusFilter || 'All');
-  const [typeFilter, setTypeFilter] = useState<MediaType | 'All'>(savedUi.typeFilter || 'All');
+  const [typeFilter, setTypeFilter] = useState<TypeGroup | 'All'>(() => {
+    // Older saved values were granular ('manga', 'webtoon', ...) — map them
+    const saved = savedUi.typeFilter;
+    if (['manhwa', 'manhua', 'manga', 'webtoon'].includes(saved)) return 'comics';
+    if (['comics', 'anime', 'movie', 'tv'].includes(saved)) return saved;
+    return 'All';
+  });
   const [tagFilter, setTagFilter] = useState<string[]>(Array.isArray(savedUi.tagFilter) ? savedUi.tagFilter : []);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isNostalgiaOpen, setIsNostalgiaOpen] = useState(false);
@@ -144,7 +150,7 @@ export default function App() {
 
   // Filtering and Sorting
   const typeFiltered = useMemo(
-    () => typeFilter === 'All' ? items : items.filter(m => m.mediaType === typeFilter),
+    () => typeFilter === 'All' ? items : items.filter(m => typeGroupOf(m.mediaType) === typeFilter),
     [items, typeFilter]
   );
 
@@ -419,7 +425,7 @@ export default function App() {
           >
             All
           </button>
-          {MEDIA_TYPES.map(t => (
+          {TYPE_GROUPS.map(t => (
             <button
               key={t.value}
               onClick={() => setTypeFilter(t.value)}

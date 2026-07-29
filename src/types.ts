@@ -1,14 +1,40 @@
 export type MediaType = 'manhwa' | 'manhua' | 'manga' | 'webtoon' | 'anime' | 'movie' | 'tv';
 
-export const MEDIA_TYPES: { value: MediaType; label: string }[] = [
-  { value: 'manhwa', label: 'Manhwa' },
-  { value: 'manhua', label: 'Manhua' },
-  { value: 'manga', label: 'Manga' },
-  { value: 'webtoon', label: 'Webtoon' },
-  { value: 'anime', label: 'Anime' },
-  { value: 'movie', label: 'Movie' },
-  { value: 'tv', label: 'TV Show' },
+// Comic formats are stored granularly (AniList tells us manhwa vs manga vs
+// manhua) but browsed as ONE bucket — the owner never filters them apart.
+export const COMIC_TYPES: MediaType[] = ['manhwa', 'manhua', 'manga', 'webtoon'];
+
+export type TypeGroup = 'comics' | 'anime' | 'movie' | 'tv';
+
+export const TYPE_GROUPS: { value: TypeGroup; label: string; defaultType: MediaType }[] = [
+  { value: 'comics', label: 'Manhwa', defaultType: 'manhwa' },
+  { value: 'anime', label: 'Anime', defaultType: 'anime' },
+  { value: 'movie', label: 'Movie', defaultType: 'movie' },
+  { value: 'tv', label: 'TV Show', defaultType: 'tv' },
 ];
+
+export function typeGroupOf(t: MediaType): TypeGroup {
+  return COMIC_TYPES.includes(t) ? 'comics' : (t as TypeGroup);
+}
+
+export function typeLabel(t: MediaType): string {
+  if (COMIC_TYPES.includes(t)) return 'Manhwa';
+  if (t === 'anime') return 'Anime';
+  if (t === 'movie') return 'Movie';
+  return 'TV Show';
+}
+
+// Statuses are stored under one set of names ("Reading", "Plan to Read") so
+// filters, stats, and sync stay simple — but watchable types display them
+// in watching terms.
+const WATCH_GROUPS: TypeGroup[] = ['anime', 'movie', 'tv'];
+
+export function displayStatus(status: string, mediaType: MediaType): string {
+  if (!WATCH_GROUPS.includes(typeGroupOf(mediaType))) return status;
+  if (status === 'Reading') return 'Watching';
+  if (status === 'Plan to Read') return 'Plan to Watch';
+  return status;
+}
 
 export interface MediaItem {
   id: string;
