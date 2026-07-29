@@ -18,7 +18,7 @@ import {
   handleFirestoreError,
   OperationType
 } from './firebase';
-import { MediaItem, TypeGroup, TYPE_GROUPS, typeGroupOf, UserConfig, DEFAULT_STATUSES, normalizeTitle } from './types';
+import { MediaItem, TypeGroup, TYPE_GROUPS, typeGroupOf, statusLabelFor, UserConfig, DEFAULT_STATUSES, normalizeTitle } from './types';
 import { cn } from './lib/utils';
 import { DetailModal } from './components/DetailModal';
 import { Header } from './components/Header';
@@ -364,7 +364,7 @@ export default function App() {
             >
               <option value="All">All Statuses</option>
               {settings && Object.keys(settings.statusConfig).map(status => (
-                <option key={status} value={status}>{status}</option>
+                <option key={status} value={status}>{statusLabelFor(status, typeFilter)}</option>
               ))}
             </select>
 
@@ -505,7 +505,7 @@ export default function App() {
           </div>
         )}
 
-        <StatsBar items={typeFiltered} settings={settings} />
+        <StatsBar items={typeFiltered} settings={settings} typeFilter={typeFilter} />
 
         {/* List / Shelf */}
         <div className={cn(
