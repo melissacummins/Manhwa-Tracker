@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Copy, Check, Edit2, ExternalLink, Image as ImageIcon, RotateCcw, Star, Trash2, XCircle, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
-import { MediaItem, UserConfig } from '../types';
+import { MediaItem, UserConfig, displayStatus, typeLabel } from '../types';
 import { cn } from '../lib/utils';
 
 function CopyText({ text, className }: { text: string; className?: string }) {
@@ -96,7 +96,7 @@ export function DetailModal({
             </div>
 
             <div className="text-sm text-stone-500 mt-1.5 flex items-center gap-2 flex-wrap">
-              <span className="uppercase tracking-wider font-semibold text-xs">{item.mediaType}</span>
+              <span className="uppercase tracking-wider font-semibold text-xs">{typeLabel(item.mediaType)}</span>
               {item.year && <span>· {item.year}</span>}
               {anilistUrl && (
                 <a href={anilistUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gold hover:underline">
@@ -124,7 +124,7 @@ export function DetailModal({
 
             <div className="mt-4 flex flex-wrap gap-2 items-center">
               <span className="px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{ backgroundColor: statusColor }}>
-                {item.status}
+                {displayStatus(item.status, item.mediaType)}
               </span>
               {item.isFavorite && (
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-goldsoft text-gold flex items-center gap-1">

@@ -1,5 +1,5 @@
 import { Image as ImageIcon, Zap } from 'lucide-react';
-import { MediaItem } from '../types';
+import { MediaItem, displayStatus, typeLabel } from '../types';
 
 function ShelfCard({ item, badge, sub, onOpen }: { item: MediaItem; badge: React.ReactNode; sub: string; onOpen: () => void }) {
   return (
@@ -45,8 +45,8 @@ export function TopShelf({
                 key={item.id}
                 item={item}
                 onOpen={() => onOpen(item)}
-                badge={<span className="text-[10px] font-bold uppercase tracking-wider text-sky-700">● {item.status}</span>}
-                sub={item.isFavorite ? 'a favorite' : item.mediaType}
+                badge={<span className="text-[10px] font-bold uppercase tracking-wider text-sky-700">● {displayStatus(item.status, item.mediaType)}</span>}
+                sub={item.isFavorite ? 'a favorite' : typeLabel(item.mediaType)}
               />
             ))}
           </div>
@@ -66,7 +66,7 @@ export function TopShelf({
                     <Zap className="w-3 h-3 fill-current" /> Excited
                   </span>
                 }
-                sub={item.status}
+                sub={displayStatus(item.status, item.mediaType)}
               />
             ))}
           </div>

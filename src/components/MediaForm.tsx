@@ -13,7 +13,7 @@ import {
 } from '../firebase';
 import { searchMetadata, MetadataError, MetadataResult } from '../lib/metadata';
 import { cn } from '../lib/utils';
-import { MediaItem, MediaType, MEDIA_TYPES, UserConfig, normalizeTitle } from '../types';
+import { MediaItem, MediaType, TYPE_GROUPS, typeGroupOf, displayStatus, UserConfig, normalizeTitle } from '../types';
 
 export function MediaForm({
   user,
@@ -157,14 +157,16 @@ export function MediaForm({
         <div className="space-y-2">
           <label className="text-sm font-bold text-stone-700">Type</label>
           <div className="flex flex-wrap gap-2">
-            {MEDIA_TYPES.map(t => (
+            {TYPE_GROUPS.map(t => (
               <button
                 key={t.value}
                 type="button"
-                onClick={() => setMediaType(t.value)}
+                onClick={() => {
+                  if (typeGroupOf(mediaType) !== t.value) setMediaType(t.defaultType);
+                }}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-xs font-bold border transition-all",
-                  mediaType === t.value
+                  typeGroupOf(mediaType) === t.value
                     ? "bg-gold border-gold text-white"
                     : "bg-white border-stone-200 text-stone-500 hover:border-amber-300"
                 )}
@@ -324,7 +326,7 @@ export function MediaForm({
               className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500"
             >
               {settings && Object.keys(settings.statusConfig).map(s => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{displayStatus(s, mediaType)}</option>
               ))}
             </select>
           </div>
