@@ -31,7 +31,7 @@ import { MigrationModal } from './components/MigrationModal';
 import { NostalgiaModal } from './components/NostalgiaModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SyncModal } from './components/SyncModal';
-import { captureTokenFromHash } from './lib/anilistPush';
+import { captureTokenFromHash, getStoredToken, pushToAniList } from './lib/anilistPush';
 import { syncFromMal } from './lib/malSync';
 
 // Restore browsing state after a reload — phone browsers discard background
@@ -137,15 +137,21 @@ export default function App() {
     };
   }, [user]);
 
-  // Daily MAL auto-pull: once per session, if a username is saved and the
-  // last sync is over a day old. Silent — failures just wait for tomorrow.
+  // Daily auto-sync, once per session: pull MAL (anime + manga lists), then
+  // push deltas to AniList if connected. Silent — failures wait for tomorrow.
   const autoSyncAttempted = useRef(false);
   useEffect(() => {
     if (autoSyncAttempted.current || !user || !settings?.malUsername || items.length === 0) return;
     const dayMs = 24 * 60 * 60 * 1000;
     if (Date.now() - (settings.lastMalSync ?? 0) < dayMs) return;
     autoSyncAttempted.current = true;
-    syncFromMal(user.uid, settings.malUsername, items).catch(() => { /* retry next visit */ });
+    syncFromMal(user.uid, settings.malUsername, items)
+      .then(() => {
+        if (getStoredToken()) {
+          return pushToAniList(items, () => {}, () => false).then(() => undefined);
+        }
+      })
+      .catch(() => { /* retry next visit */ });
   }, [user, settings, items]);
 
   // Filtering and Sorting

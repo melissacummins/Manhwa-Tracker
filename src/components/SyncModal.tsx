@@ -103,9 +103,9 @@ export function SyncModal({
             Pull from MyAnimeList
           </div>
           <p className="text-sm text-stone-500">
-            Brings your MAL anime list in: new anime are added, statuses and scores update.
-            Your favorites, tags, and notes here are never changed. Runs automatically about
-            once a day after the first sync.
+            Brings in both your MAL lists — anime, and the manga list Mihon tracks to. New
+            titles are added; statuses and scores update. Your favorites, tags, and notes
+            here are never changed. Runs automatically about once a day after the first sync.
           </p>
           <div className="flex gap-2">
             <input
@@ -131,6 +131,7 @@ export function SyncModal({
             <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
               {malResult.total} on MAL · {malResult.added} added · {malResult.updated} updated · {malResult.unchanged} already current
+              {malResult.skippedNovels > 0 && ` · ${malResult.skippedNovels} novels skipped`}
             </p>
           )}
           {malError && (
@@ -146,8 +147,8 @@ export function SyncModal({
           </div>
           <p className="text-sm text-stone-500">
             Sends your statuses and ratings to your AniList account as a backup — anime and
-            any manhwa/manga the library has matched. Only changed entries are sent after the
-            first push.
+            any manhwa/manga the library has matched. After the first push, only changed
+            entries are sent, and it re-runs automatically with the daily MAL sync.
           </p>
 
           {!authUrl ? (
