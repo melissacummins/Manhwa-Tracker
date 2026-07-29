@@ -36,6 +36,24 @@ export function displayStatus(status: string, mediaType: MediaType): string {
   return status;
 }
 
+export function isWatchGroup(group: TypeGroup | 'All'): boolean {
+  return group === 'anime' || group === 'movie' || group === 'tv';
+}
+
+// Label for aggregate contexts (stats tiles, the status filter dropdown),
+// which depend on the active type filter rather than a single item.
+export function statusLabelFor(status: string, group: TypeGroup | 'All'): string {
+  if (status === 'Reading') {
+    if (group === 'All') return 'Reading / Watching';
+    return isWatchGroup(group) ? 'Watching' : 'Reading';
+  }
+  if (status === 'Plan to Read') {
+    if (group === 'All') return 'To Read / Watch';
+    return isWatchGroup(group) ? 'Plan to Watch' : 'Plan to Read';
+  }
+  return status;
+}
+
 export interface MediaItem {
   id: string;
   mediaType: MediaType;
