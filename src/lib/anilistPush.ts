@@ -7,6 +7,7 @@
 // skipped when they haven't changed since the last successful push.
 
 import { MediaItem, typeGroupOf } from '../types';
+import { anilistRequest } from './metadata';
 
 const TOKEN_KEY = 'cc-anilist-token';
 const PUSHED_KEY = 'cc-anilist-pushed'; // itemId -> updatedAt millis at last push
@@ -80,15 +81,14 @@ async function anilistGraphQL(token: string, query: string, variables: Record<st
     if (wait > 0) await sleep(wait);
     lastRequestAt = Date.now();
 
-    const res = await fetch('https://graphql.anilist.co', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ query, variables }),
-    });
+    // Direct-then-relay, sidestepping AniList's flaky CORS preflight
+    let res: Response;
+    try {
+      res = await anilistRequest({ query, variables }, token);
+    } catch {
+      await sleep(2000 * 2 ** attempt);
+      continue;
+    }
 
     if (res.status === 429) {
       const retryAfter = parseInt(res.headers.get('retry-after') || '0', 10);
