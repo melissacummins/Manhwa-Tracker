@@ -40,30 +40,39 @@ function comicTypeFromCountry(country: string | null): MediaType {
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function searchAniList(search: string, mediaType: MediaType): Promise<MetadataResult[]> {
-  // AniList's error responses (rate limits, outages) arrive without CORS
-  // headers, which the browser surfaces as a network failure — retry briefly,
-  // then explain honestly instead of a vague "unavailable".
+// Direct first (fast; rate limits land on the user's own IP), then our own
+// Vercel relay — AniList's CORS preflight breaks at times, and server-to-
+// server calls sidestep it entirely.
+export async function anilistRequest(body: unknown, token?: string | null): Promise<Response> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const payload = JSON.stringify(body);
+
   let res: Response | null = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) await sleep(1500 * attempt);
+  const targets = ['https://graphql.anilist.co', '/api/anilist', '/api/anilist'];
+  for (let attempt = 0; attempt < targets.length; attempt++) {
+    if (attempt > 1) await sleep(2000);
     try {
-      res = await fetch('https://graphql.anilist.co', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ query: ANILIST_QUERY, variables: { search, type: anilistTypeFor(mediaType) } }),
-      });
+      res = await fetch(targets[attempt], { method: 'POST', headers, body: payload });
     } catch {
       res = null;
       continue;
     }
-    if (res.status !== 429 && res.status < 500) break;
+    if (res.status !== 429 && res.status < 500) return res;
   }
   if (!res) {
     throw new MetadataError(
       "AniList isn't responding right now — it's usually a brief outage or rate limit on their side. Try again in a few minutes, or add the entry manually."
     );
   }
+  return res;
+}
+
+async function searchAniList(search: string, mediaType: MediaType): Promise<MetadataResult[]> {
+  const res = await anilistRequest({
+    query: ANILIST_QUERY,
+    variables: { search, type: anilistTypeFor(mediaType) },
+  });
   if (!res.ok) throw new MetadataError(`AniList search failed (${res.status}) — try again in a few minutes.`);
   const json = await res.json();
   const media: any[] = json?.data?.Page?.media || [];
