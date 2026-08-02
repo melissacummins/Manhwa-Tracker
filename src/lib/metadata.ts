@@ -38,13 +38,33 @@ function comicTypeFromCountry(country: string | null): MediaType {
   return 'manhwa';
 }
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 async function searchAniList(search: string, mediaType: MediaType): Promise<MetadataResult[]> {
-  const res = await fetch('https://graphql.anilist.co', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-    body: JSON.stringify({ query: ANILIST_QUERY, variables: { search, type: anilistTypeFor(mediaType) } }),
-  });
-  if (!res.ok) throw new MetadataError(`AniList search failed (${res.status})`);
+  // AniList's error responses (rate limits, outages) arrive without CORS
+  // headers, which the browser surfaces as a network failure — retry briefly,
+  // then explain honestly instead of a vague "unavailable".
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await sleep(1500 * attempt);
+    try {
+      res = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ query: ANILIST_QUERY, variables: { search, type: anilistTypeFor(mediaType) } }),
+      });
+    } catch {
+      res = null;
+      continue;
+    }
+    if (res.status !== 429 && res.status < 500) break;
+  }
+  if (!res) {
+    throw new MetadataError(
+      "AniList isn't responding right now — it's usually a brief outage or rate limit on their side. Try again in a few minutes, or add the entry manually."
+    );
+  }
+  if (!res.ok) throw new MetadataError(`AniList search failed (${res.status}) — try again in a few minutes.`);
   const json = await res.json();
   const media: any[] = json?.data?.Page?.media || [];
   return media
