@@ -20,10 +20,10 @@ import {
 } from './firebase';
 import { MediaItem, TypeGroup, TYPE_GROUPS, typeGroupOf, statusLabelFor, UserConfig, DEFAULT_STATUSES, normalizeTitle } from './types';
 import { cn } from './lib/utils';
+import { ContinuePage } from './components/ContinuePage';
 import { DetailModal } from './components/DetailModal';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
-import { TopShelf } from './components/TopShelf';
 import { StatsBar } from './components/StatsBar';
 import { MediaCard } from './components/MediaCard';
 import { MediaForm } from './components/MediaForm';
@@ -74,6 +74,8 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'title-asc' | 'title-desc' | 'updated' | 'added' | 'year'>(savedUi.sortBy || 'title-asc');
   const [letterFilter, setLetterFilter] = useState<string>(savedUi.letterFilter || 'All');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // The Continue page is home; Shelves is the full collection
+  const [page, setPage] = useState<'continue' | 'shelves'>(savedUi.page === 'shelves' ? 'shelves' : 'continue');
 
   // Filtering waits for a typing pause instead of running on every keystroke
   const deferredQuery = useDeferredValue(searchQuery);
@@ -82,10 +84,10 @@ export default function App() {
   useEffect(() => {
     try {
       sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({
-        searchQuery, statusFilter, typeFilter, tagFilter, sortBy, letterFilter,
+        searchQuery, statusFilter, typeFilter, tagFilter, sortBy, letterFilter, page,
       }));
     } catch { /* storage full or unavailable — browsing still works */ }
-  }, [searchQuery, statusFilter, typeFilter, tagFilter, sortBy, letterFilter]);
+  }, [searchQuery, statusFilter, typeFilter, tagFilter, sortBy, letterFilter, page]);
   const [view, setView] = useState<'list' | 'grid'>(
     () => (localStorage.getItem('cc-view') === 'grid' ? 'grid' : 'list')
   );
@@ -167,18 +169,6 @@ export default function App() {
 
   const nostalgiaPool = useMemo(
     () => items.filter(m => m.isFavorite || m.wouldRevisit),
-    [items]
-  );
-
-  const readingItems = useMemo(
-    () => items
-      .filter(m => m.status === 'Reading')
-      .sort((a, b) => (b.updatedAt?.toMillis?.() ?? 0) - (a.updatedAt?.toMillis?.() ?? 0)),
-    [items]
-  );
-
-  const excitedItems = useMemo(
-    () => items.filter(m => m.isExcited && m.status !== 'Reading'),
     [items]
   );
 
@@ -329,11 +319,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <Header user={user} onOpenSettings={() => setIsSettingsOpen(true)} />
+      <Header
+        user={user}
+        activePage={page}
+        onNavigate={setPage}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <TopShelf reading={readingItems} excited={excitedItems} onOpen={setDetailItem} />
-
+        {page === 'continue' ? (
+          <ContinuePage items={items} onOpen={setDetailItem} />
+        ) : (<>
         {/* Controls */}
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="relative flex-1">
@@ -549,6 +545,7 @@ export default function App() {
             </div>
           )}
         </div>
+        </>)}
       </main>
 
       {/* Add/Edit Modal */}
