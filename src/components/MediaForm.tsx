@@ -101,8 +101,12 @@ export function MediaForm({
     setAltTitles(Array.from(new Set([...r.alternativeTitles])));
     setCoverUrl(r.coverUrl);
     setYear(r.year);
-    setExternalIds(r.source === 'anilist' ? { anilistId: r.externalId } : { tmdbId: r.externalId });
-    if (r.source === 'anilist' && mediaType !== 'anime' && mediaType !== 'webtoon') {
+    setExternalIds(
+      r.source === 'anilist' ? { anilistId: r.externalId }
+      : r.source === 'mal' ? { malId: r.externalId }
+      : { tmdbId: r.externalId }
+    );
+    if (r.source !== 'tmdb' && mediaType !== 'anime' && mediaType !== 'webtoon') {
       setMediaType(r.suggestedMediaType);
     }
     setResults(null);
@@ -240,7 +244,14 @@ export function MediaForm({
         {/* Search Results Picker */}
         {results && results.length > 0 && (
           <div className="space-y-2">
-            <label className="text-sm font-bold text-stone-700">Pick a match</label>
+            <label className="text-sm font-bold text-stone-700">
+              Pick a match
+              {results[0].source === 'mal' && (
+                <span className="ml-2 font-medium normal-case text-xs text-stone-400">
+                  via MyAnimeList — AniList wasn't reachable
+                </span>
+              )}
+            </label>
             <div className="flex gap-3 overflow-x-auto pb-2">
               {results.map(r => (
                 <button
