@@ -2,7 +2,7 @@ import { MediaType } from '../types';
 
 export interface MetadataResult {
   externalId: number;
-  source: 'anilist' | 'tmdb';
+  source: 'anilist' | 'tmdb' | 'mal';
   title: string;
   alternativeTitles: string[];
   coverUrl: string | null;
@@ -123,8 +123,55 @@ async function searchTmdb(search: string, mediaType: 'movie' | 'tv'): Promise<Me
   }).filter(r => r.title);
 }
 
+// Backup search through MyAnimeList's catalog (via our relay) for when
+// AniList is unreachable — MAL ids integrate fine everywhere (sync and the
+// AniList push both resolve them).
+const MAL_MANGA_TYPES: Record<string, MediaType> = {
+  manhwa: 'manhwa', manhua: 'manhua', manga: 'manga',
+  one_shot: 'manga', doujinshi: 'manga', oel: 'webtoon',
+};
+
+async function searchMal(search: string, mediaType: MediaType): Promise<MetadataResult[]> {
+  const list = mediaType === 'anime' ? 'anime' : 'manga';
+  const res = await fetch(`/api/mal-search?q=${encodeURIComponent(search)}&list=${list}`);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new MetadataError(json.error || `Backup search failed (${res.status})`);
+  const entries: any[] = json.data || [];
+  return entries
+    .filter(e => list !== 'manga' || !e.node.media_type || e.node.media_type in MAL_MANGA_TYPES)
+    .map(e => {
+      const node = e.node;
+      const alts = Array.from(new Set(
+        [node.alternative_titles?.en, node.alternative_titles?.ja, ...(node.alternative_titles?.synonyms || [])]
+          .filter((t: unknown): t is string => !!t && t !== node.title)
+      ));
+      const year = list === 'anime'
+        ? node.start_season?.year ?? null
+        : (node.start_date ? parseInt(node.start_date.slice(0, 4), 10) || null : null);
+      return {
+        externalId: node.id as number,
+        source: 'mal' as const,
+        title: node.title as string,
+        alternativeTitles: alts,
+        coverUrl: node.main_picture?.large || node.main_picture?.medium || null,
+        year,
+        suggestedMediaType: list === 'anime' ? 'anime' as const : (MAL_MANGA_TYPES[node.media_type] || 'manga'),
+      };
+    })
+    .filter(r => r.title);
+}
+
 export async function searchMetadata(search: string, mediaType: MediaType): Promise<MetadataResult[]> {
   if (!search.trim()) return [];
   if (mediaType === 'movie' || mediaType === 'tv') return searchTmdb(search, mediaType);
-  return searchAniList(search, mediaType);
+  try {
+    return await searchAniList(search, mediaType);
+  } catch (anilistErr) {
+    // AniList unreachable — fall back to MyAnimeList's catalog
+    try {
+      return await searchMal(search, mediaType);
+    } catch {
+      throw anilistErr;
+    }
+  }
 }
