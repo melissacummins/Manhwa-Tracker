@@ -122,11 +122,6 @@ export function ContinuePage({
     () => items.filter(m => m.status === 'Reading' && typeGroupOf(m.mediaType) !== 'comics'),
     [items]
   );
-  const excited = useMemo(
-    () => items.filter(m => m.isExcited && m.status !== 'Reading'),
-    [items]
-  );
-
   const [sortMode, setSortMode] = useState<SortMode>('recent');
   const [airing, setAiring] = useState<Record<number, AiringInfo>>({});
 
@@ -161,28 +156,60 @@ export function ContinuePage({
       <Section title="Currently Reading" items={reading} airing={airing} sortMode={sortMode} onOpen={onOpen} />
       <Section title="Currently Watching" items={watching} airing={airing} sortMode={sortMode} onOpen={onOpen} />
 
-      {excited.length > 0 && (
-        <div className="mb-10">
-          <div className="kicker mb-4">
-            <span className="flex items-center gap-1.5">Most Excited For <Zap className="w-3 h-3 fill-current text-wine" /></span>
-            <span className="normal-case tracking-normal font-semibold text-stone-400">· {excited.length}</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
-            {excited.map(item => (
-              <Card
-                key={item.id}
-                item={item}
-                airing={item.externalIds?.anilistId ? airing[item.externalIds.anilistId] : undefined}
-                onOpen={() => onOpen(item)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {reading.length === 0 && watching.length === 0 && excited.length === 0 && (
+      {reading.length === 0 && watching.length === 0 && (
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-stone-300 text-stone-500">
           Nothing in progress — mark something as Reading or Watching and it'll appear here.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The ⚡ anticipation list, as its own tab so it never gets buried
+export function ExcitedPage({
+  items,
+  onOpen,
+}: {
+  items: MediaItem[];
+  onOpen: (item: MediaItem) => void;
+}) {
+  const excited = useMemo(
+    () => [...items.filter(m => m.isExcited)]
+      .sort((a, b) => (b.updatedAt?.toMillis?.() ?? 0) - (a.updatedAt?.toMillis?.() ?? 0)),
+    [items]
+  );
+
+  const [airing, setAiring] = useState<Record<number, AiringInfo>>({});
+  useEffect(() => {
+    let alive = true;
+    fetchAiringInfo(excited).then(info => {
+      if (alive) setAiring(info);
+    });
+    return () => { alive = false; };
+  }, [excited]);
+
+  return (
+    <div>
+      <div className="kicker mb-4">
+        <span className="flex items-center gap-1.5">Most Excited For <Zap className="w-3 h-3 fill-current text-wine" /></span>
+        <span className="normal-case tracking-normal font-semibold text-stone-400">· {excited.length}</span>
+      </div>
+      {excited.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+          {excited.map(item => (
+            <Card
+              key={item.id}
+              item={item}
+              airing={item.externalIds?.anilistId ? airing[item.externalIds.anilistId] : undefined}
+              onOpen={() => onOpen(item)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-stone-300 text-stone-500 px-6">
+          <Zap className="w-8 h-8 mx-auto mb-3 text-wine fill-current" />
+          Nothing pinned yet — open any title you're hyped for, hit <b>Edit</b>, and tap
+          <b> “Pin to Most Excited For”</b>. It'll show up here.
         </div>
       )}
     </div>

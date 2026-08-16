@@ -8,12 +8,12 @@ export function Header({
   onOpenSettings,
 }: {
   user: User;
-  activePage: 'continue' | 'shelves';
-  onNavigate: (page: 'continue' | 'shelves') => void;
+  activePage: 'continue' | 'excited' | 'shelves';
+  onNavigate: (page: 'continue' | 'excited' | 'shelves') => void;
   onOpenSettings: () => void;
 }) {
   const firstName = user.displayName?.split(' ')[0];
-  const tab = (page: 'continue' | 'shelves', label: string) => (
+  const tab = (page: 'continue' | 'excited' | 'shelves', label: string) => (
     <button
       onClick={() => onNavigate(page)}
       className={
@@ -36,6 +36,7 @@ export function Header({
             </span>
             <nav className="flex items-center gap-5 ml-4 sm:ml-8">
               {tab('continue', 'Continue')}
+              {tab('excited', 'Excited')}
               {tab('shelves', 'Shelves')}
             </nav>
           </div>
