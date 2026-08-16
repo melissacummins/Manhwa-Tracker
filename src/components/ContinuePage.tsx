@@ -142,7 +142,7 @@ export function ContinuePage({
     <div>
       <div className="flex items-center gap-2 mb-6">
         <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">Sort:</span>
-        {([['recent', 'Recent first'], ['neglected', 'Neglected first'], ['az', 'A → Z']] as [SortMode, string][]).map(([mode, label]) => (
+        {([['recent', 'Recent first'], ['az', 'A → Z']] as [SortMode, string][]).map(([mode, label]) => (
           <button
             key={mode}
             onClick={() => setSortMode(mode)}

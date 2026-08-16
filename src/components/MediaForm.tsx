@@ -45,6 +45,7 @@ export function MediaForm({
   const [tagInput, setTagInput] = useState('');
   const [notes, setNotes] = useState(editingItem?.notes || '');
   const [duplicateFound, setDuplicateFound] = useState<MediaItem | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const tagSuggestions = useMemo(() => {
     const q = tagInput.trim().toLowerCase();
@@ -66,9 +67,11 @@ export function MediaForm({
   const [results, setResults] = useState<MetadataResult[] | null>(null);
 
   // Duplicate Check — compares both directions: the new entry's title AND
-  // alt titles against every existing entry's title and alt titles.
+  // alt titles against every existing entry's title and alt titles. Skipped
+  // once saved: the new doc echoes back into existingItems while the modal
+  // is still closing, and the form would briefly flag itself as a duplicate.
   useEffect(() => {
-    if (!title) {
+    if (!title || saved) {
       setDuplicateFound(null);
       return;
     }
@@ -78,7 +81,7 @@ export function MediaForm({
       [m.title, ...m.alternativeTitles].some(n => ourNames.has(normalizeTitle(n)))
     );
     setDuplicateFound(found || null);
-  }, [title, altTitles, existingItems, editingItem]);
+  }, [title, altTitles, existingItems, editingItem, saved]);
 
   const handleSearch = async () => {
     if (!title.trim()) return;
@@ -141,6 +144,7 @@ export function MediaForm({
         const newDocRef = doc(mediaCollection);
         await setDoc(newDocRef, { ...data, createdAt: serverTimestamp() });
       }
+      setSaved(true);
       onClose();
     } catch (err) {
       handleFirestoreError(err, editingItem ? OperationType.UPDATE : OperationType.CREATE, 'users/media');
