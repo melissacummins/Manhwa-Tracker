@@ -20,7 +20,7 @@ import {
 } from './firebase';
 import { MediaItem, TypeGroup, TYPE_GROUPS, typeGroupOf, statusLabelFor, UserConfig, DEFAULT_STATUSES, normalizeTitle } from './types';
 import { cn } from './lib/utils';
-import { ContinuePage } from './components/ContinuePage';
+import { ContinuePage, ExcitedPage } from './components/ContinuePage';
 import { DetailModal } from './components/DetailModal';
 import { Header } from './components/Header';
 import { LoginScreen } from './components/LoginScreen';
@@ -75,7 +75,9 @@ export default function App() {
   const [letterFilter, setLetterFilter] = useState<string>(savedUi.letterFilter || 'All');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   // The Continue page is home; Shelves is the full collection
-  const [page, setPage] = useState<'continue' | 'shelves'>(savedUi.page === 'shelves' ? 'shelves' : 'continue');
+  const [page, setPage] = useState<'continue' | 'excited' | 'shelves'>(
+    savedUi.page === 'shelves' || savedUi.page === 'excited' ? savedUi.page : 'continue'
+  );
 
   // Filtering waits for a typing pause instead of running on every keystroke
   const deferredQuery = useDeferredValue(searchQuery);
@@ -329,6 +331,8 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {page === 'continue' ? (
           <ContinuePage items={items} onOpen={setDetailItem} />
+        ) : page === 'excited' ? (
+          <ExcitedPage items={items} onOpen={setDetailItem} />
         ) : (<>
         {/* Controls */}
         <div className="flex flex-col md:flex-row gap-4 mb-4">
