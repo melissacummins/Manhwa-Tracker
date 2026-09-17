@@ -31,8 +31,14 @@ export default async function handler(req, res) {
       || /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i.exec(html);
     const coverUrl = match ? match[1] : null;
 
-    // Goodreads' placeholder "no cover" image isn't worth storing
-    if (!coverUrl || /nophoto/i.test(coverUrl)) {
+    // A real book page always carries og:image (a "nophoto" placeholder at
+    // worst). A page without one is Goodreads' bot-check interstitial — a
+    // rate limit, not a missing cover, so tell the client to retry.
+    if (!coverUrl) {
+      console.log(`goodreads-cover ${id}: challenged (status ${r.status}, ${html.length} bytes)`);
+      return res.status(429).json({ error: 'Goodreads is rate-limiting lookups right now.' });
+    }
+    if (/nophoto/i.test(coverUrl)) {
       return res.status(404).json({ error: 'No cover on the Goodreads page.' });
     }
 
