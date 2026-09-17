@@ -169,7 +169,17 @@ const NO_MATCH: CoverMatch = { coverUrl: null, source: null, googleBooksId: null
 const COVER_CACHE_KEY = 'cc-goodreads-cover-cache-v2';
 
 function loadCoverCache(): Record<string, CoverMatch> {
-  try { return JSON.parse(localStorage.getItem(COVER_CACHE_KEY) || '{}'); } catch { return {}; }
+  try {
+    const raw: Record<string, CoverMatch> = JSON.parse(localStorage.getItem(COVER_CACHE_KEY) || '{}');
+    // Keep hits only. Earlier builds cached misses too, which made re-running
+    // the fix pass useless for anything that failed once (e.g. during a
+    // Goodreads rate-limit stretch) — misses must always be retried.
+    const hits: Record<string, CoverMatch> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (v?.coverUrl) hits[k] = v;
+    }
+    return hits;
+  } catch { return {}; }
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -183,13 +193,23 @@ function authorsMatch(a: string | null, b: string | null | undefined): boolean {
   return norm(a) === norm(b) || (last(a) !== '' && last(a) === last(b));
 }
 
+// Goodreads rate-limits bursts by serving bot-check pages (the relay reports
+// those as 429), so back off and retry a couple of times before giving up.
+// Misses are never cached, so anything that still fails here is retried the
+// next time the import or fix pass runs.
 async function lookupGoodreadsCover(goodreadsId: number): Promise<string | null> {
-  try {
-    const res = await fetch(`/api/goodreads-cover?id=${goodreadsId}`);
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.coverUrl || null;
-  } catch { return null; }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`/api/goodreads-cover?id=${goodreadsId}`);
+      if (res.ok) {
+        const json = await res.json();
+        return json.coverUrl || null;
+      }
+      if (res.status !== 429) return null; // genuinely no cover — don't hammer
+    } catch { /* network hiccup — treat like a rate limit and retry */ }
+    await sleep(4000 * (attempt + 1));
+  }
+  return null;
 }
 
 async function lookupGoogleBooks(book: GoodreadsBook): Promise<CoverMatch | null> {
@@ -273,8 +293,12 @@ async function findCoverCached(
   let match = cache[key];
   if (match === undefined) {
     match = await findCover(book);
-    cache[key] = match;
-    try { localStorage.setItem(COVER_CACHE_KEY, JSON.stringify(cache)); } catch { /* cache is best-effort */ }
+    if (match.coverUrl) {
+      // Cache hits only — a miss may just be a rate limit and must be
+      // retried on the next run
+      cache[key] = match;
+      try { localStorage.setItem(COVER_CACHE_KEY, JSON.stringify(cache)); } catch { /* cache is best-effort */ }
+    }
     await sleep(350); // stay polite to everyone we're asking
   }
   return match;
