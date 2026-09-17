@@ -42,6 +42,12 @@ export function DetailModal({
   const tmdbUrl = item.externalIds?.tmdbId
     ? `https://www.themoviedb.org/${item.mediaType === 'tv' ? 'tv' : 'movie'}/${item.externalIds.tmdbId}`
     : null;
+  const openLibraryUrl = item.externalIds?.openLibraryId
+    ? `https://openlibrary.org/works/OL${item.externalIds.openLibraryId}W`
+    : null;
+  const googleBooksUrl = item.externalIds?.googleBooksId
+    ? `https://books.google.com/books?id=${item.externalIds.googleBooksId}`
+    : null;
 
   const copyTitle = () => {
     navigator.clipboard.writeText(item.title).then(() => {
@@ -97,6 +103,7 @@ export function DetailModal({
 
             <div className="text-sm text-stone-500 mt-1.5 flex items-center gap-2 flex-wrap">
               <span className="uppercase tracking-wider font-semibold text-xs">{typeLabel(item.mediaType)}</span>
+              {item.author && <span>· by {item.author}</span>}
               {item.year && <span>· {item.year}</span>}
               {anilistUrl && (
                 <a href={anilistUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gold hover:underline">
@@ -106,6 +113,16 @@ export function DetailModal({
               {tmdbUrl && (
                 <a href={tmdbUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gold hover:underline">
                   TMDB <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              {openLibraryUrl && (
+                <a href={openLibraryUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gold hover:underline">
+                  Open Library <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              {googleBooksUrl && (
+                <a href={googleBooksUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gold hover:underline">
+                  Google Books <ExternalLink className="w-3 h-3" />
                 </a>
               )}
             </div>

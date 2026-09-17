@@ -36,6 +36,7 @@ function Card({ item, airing, onOpen }: { item: MediaItem; airing?: AiringInfo; 
       )}
       <div className="min-w-0">
         <div className="font-serif font-semibold text-[13px] leading-snug line-clamp-2">{item.title}</div>
+        {item.author && <div className="text-[11px] text-stone-500 line-clamp-1">{item.author}</div>}
         <div className={cn("text-[11px] mt-1", ago.fresh ? "text-sky-700 font-semibold" : "text-stone-400 italic")}>
           {ago.text}
         </div>
@@ -118,8 +119,12 @@ export function ContinuePage({
     () => items.filter(m => m.status === 'Reading' && typeGroupOf(m.mediaType) === 'comics'),
     [items]
   );
+  const books = useMemo(
+    () => items.filter(m => m.status === 'Reading' && typeGroupOf(m.mediaType) === 'books'),
+    [items]
+  );
   const watching = useMemo(
-    () => items.filter(m => m.status === 'Reading' && typeGroupOf(m.mediaType) !== 'comics'),
+    () => items.filter(m => m.status === 'Reading' && !['comics', 'books'].includes(typeGroupOf(m.mediaType))),
     [items]
   );
   const [sortMode, setSortMode] = useState<SortMode>('recent');
@@ -154,9 +159,10 @@ export function ContinuePage({
       </div>
 
       <Section title="Currently Reading" items={reading} airing={airing} sortMode={sortMode} onOpen={onOpen} />
+      <Section title="Books" items={books} airing={airing} sortMode={sortMode} onOpen={onOpen} />
       <Section title="Currently Watching" items={watching} airing={airing} sortMode={sortMode} onOpen={onOpen} />
 
-      {reading.length === 0 && watching.length === 0 && (
+      {reading.length === 0 && books.length === 0 && watching.length === 0 && (
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-stone-300 text-stone-500">
           Nothing in progress — mark something as Reading or Watching and it'll appear here.
         </div>

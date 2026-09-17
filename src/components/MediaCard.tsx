@@ -61,6 +61,7 @@ export function MediaCard({
         </div>
         <div className="p-3">
           <h3 className="font-serif text-sm font-bold text-stone-900 line-clamp-2">{item.title}</h3>
+          {item.author && <p className="text-xs text-stone-400 line-clamp-1">{item.author}</p>}
           <div className="mt-2 flex items-center gap-2">
             <span
               className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm"
@@ -109,6 +110,7 @@ export function MediaCard({
               {displayStatus(item.status, item.mediaType)}
             </span>
             <span className="text-xs text-stone-400 uppercase tracking-wider font-semibold">{typeLabel(item.mediaType)}</span>
+            {item.author && <span className="text-xs text-stone-400">by {item.author}</span>}
             {item.year && <span className="text-xs text-stone-400">{item.year}</span>}
             {item.tags.map(t => (
               <span key={t} className="px-2 py-0.5 bg-amber-50 text-gold rounded-full text-xs font-medium">{t}</span>

@@ -32,6 +32,7 @@ export function MediaForm({
 }) {
   const [mediaType, setMediaType] = useState<MediaType>(editingItem?.mediaType || 'manhwa');
   const [title, setTitle] = useState(editingItem?.title || '');
+  const [author, setAuthor] = useState(editingItem?.author || '');
   const [altTitles, setAltTitles] = useState<string[]>(editingItem?.alternativeTitles || []);
   const [coverUrl, setCoverUrl] = useState<string | null>(editingItem?.coverUrl || null);
   const [year, setYear] = useState<number | null>(editingItem?.year ?? null);
@@ -67,9 +68,11 @@ export function MediaForm({
   const [results, setResults] = useState<MetadataResult[] | null>(null);
 
   // Duplicate Check — compares both directions: the new entry's title AND
-  // alt titles against every existing entry's title and alt titles. Skipped
-  // once saved: the new doc echoes back into existingItems while the modal
-  // is still closing, and the form would briefly flag itself as a duplicate.
+  // alt titles against every existing entry's title and alt titles, within
+  // the same type group only (a novel and its manhwa adaptation share a
+  // title without being duplicates). Skipped once saved: the new doc echoes
+  // back into existingItems while the modal is still closing, and the form
+  // would briefly flag itself as a duplicate.
   useEffect(() => {
     if (!title || saved) {
       setDuplicateFound(null);
@@ -78,10 +81,11 @@ export function MediaForm({
     const ourNames = new Set([title, ...altTitles].map(normalizeTitle).filter(Boolean));
     const found = existingItems.find(m =>
       m.id !== editingItem?.id &&
+      typeGroupOf(m.mediaType) === typeGroupOf(mediaType) &&
       [m.title, ...m.alternativeTitles].some(n => ourNames.has(normalizeTitle(n)))
     );
     setDuplicateFound(found || null);
-  }, [title, altTitles, existingItems, editingItem, saved]);
+  }, [title, altTitles, mediaType, existingItems, editingItem, saved]);
 
   const handleSearch = async () => {
     if (!title.trim()) return;
@@ -104,13 +108,16 @@ export function MediaForm({
     setAltTitles(Array.from(new Set([...r.alternativeTitles])));
     setCoverUrl(r.coverUrl);
     setYear(r.year);
+    setAuthor(r.author || '');
     setExternalIds(
-      r.source === 'anilist' ? { anilistId: r.externalId }
-      : r.source === 'mal' ? { malId: r.externalId }
-      : { tmdbId: r.externalId }
+      r.source === 'anilist' ? { anilistId: r.externalId as number }
+      : r.source === 'mal' ? { malId: r.externalId as number }
+      : r.source === 'openlibrary' ? { openLibraryId: r.externalId as number }
+      : r.source === 'googlebooks' ? { googleBooksId: r.externalId as string }
+      : { tmdbId: r.externalId as number }
     );
-    if (r.source !== 'tmdb' && mediaType !== 'anime' && mediaType !== 'webtoon') {
-      setMediaType(r.suggestedMediaType);
+    if (r.source === 'anilist' || r.source === 'mal') {
+      if (mediaType !== 'anime' && mediaType !== 'webtoon') setMediaType(r.suggestedMediaType);
     }
     setResults(null);
   };
@@ -122,6 +129,7 @@ export function MediaForm({
     const data = {
       mediaType,
       title,
+      author: author.trim() || null,
       alternativeTitles: altTitles,
       coverUrl,
       year,
@@ -245,6 +253,20 @@ export function MediaForm({
           )}
         </div>
 
+        {/* Author (books only) */}
+        {typeGroupOf(mediaType) === 'books' && (
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-stone-700">Author</label>
+            <input
+              type="text"
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-2xl outline-none focus:ring-2 focus:ring-amber-500"
+              placeholder="Filled in by search, or type it here"
+            />
+          </div>
+        )}
+
         {/* Search Results Picker */}
         {results && results.length > 0 && (
           <div className="space-y-2">
@@ -253,6 +275,11 @@ export function MediaForm({
               {results[0].source === 'mal' && (
                 <span className="ml-2 font-medium normal-case text-xs text-stone-400">
                   via MyAnimeList — AniList wasn't reachable
+                </span>
+              )}
+              {results[0].source === 'googlebooks' && (
+                <span className="ml-2 font-medium normal-case text-xs text-stone-400">
+                  via Google Books — Open Library had no matches
                 </span>
               )}
             </label>
@@ -276,6 +303,7 @@ export function MediaForm({
                     </div>
                   )}
                   <div className="mt-1 text-xs font-medium text-stone-700 line-clamp-2">{r.title}</div>
+                  {r.author && <div className="text-xs text-stone-400 line-clamp-1">{r.author}</div>}
                   {r.year && <div className="text-xs text-stone-400">{r.year}</div>}
                 </button>
               ))}

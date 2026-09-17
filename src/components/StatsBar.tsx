@@ -19,7 +19,7 @@ export function StatsBar({
         const matching = items.filter(m => m.status === status);
         // On the All view, "Reading" spans two worlds — show the split
         const showSplit = typeFilter === 'All' && (status === 'Reading' || status === 'Plan to Read');
-        const readCount = showSplit ? matching.filter(m => typeGroupOf(m.mediaType) === 'comics').length : 0;
+        const readCount = showSplit ? matching.filter(m => !isWatchGroup(typeGroupOf(m.mediaType))).length : 0;
         const watchCount = showSplit ? matching.length - readCount : 0;
         return (
           <div key={status} className="glass-card p-4 text-center">

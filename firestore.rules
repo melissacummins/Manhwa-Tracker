@@ -51,8 +51,9 @@ service cloud.firestore {
     // Command Center data model
     //
     // users/{uid}/media/{itemId}
-    //   - mediaType: one of manhwa|manhua|manga|webtoon|anime|movie|tv
+    //   - mediaType: one of manhwa|manhua|manga|webtoon|book|anime|movie|tv
     //   - title: string (1-255 chars)
+    //   - author: string or null (books)
     //   - alternativeTitles: list (max 25)
     //   - coverUrl: string or null
     //   - status: string (1-50 chars)
@@ -71,8 +72,9 @@ service cloud.firestore {
     function isValidMediaItem(data) {
       return data.title is string && data.title.size() >= 1 && data.title.size() <= 255 &&
              data.status is string && data.status.size() >= 1 && data.status.size() <= 50 &&
-             data.mediaType in ['manhwa', 'manhua', 'manga', 'webtoon', 'anime', 'movie', 'tv'] &&
+             data.mediaType in ['manhwa', 'manhua', 'manga', 'webtoon', 'book', 'anime', 'movie', 'tv'] &&
              data.alternativeTitles is list && data.alternativeTitles.size() <= 25 &&
+             (!('author' in data) || data.author == null || (data.author is string && data.author.size() <= 255)) &&
              (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
              (!('rating' in data) || data.rating == null || (data.rating is number && data.rating >= 1 && data.rating <= 5)) &&
              (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000));
