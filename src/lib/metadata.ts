@@ -162,8 +162,9 @@ async function searchMal(search: string, mediaType: MediaType): Promise<Metadata
     .filter(r => r.title);
 }
 
-// Book search: Open Library first (free, keyless, stable work ids), with
-// Google Books as the backup catalog — both are plain CORS-friendly GETs.
+// Book search: Google Books first (far better coverage of indie/KU romance,
+// and nearly always has a cover), with Open Library as the backup catalog —
+// both are free, keyless, CORS-friendly GETs.
 async function searchOpenLibrary(search: string): Promise<MetadataResult[]> {
   const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(search)}&limit=8&fields=key,title,author_name,first_publish_year,cover_i`;
   const res = await fetch(url);
@@ -188,6 +189,13 @@ async function searchOpenLibrary(search: string): Promise<MetadataResult[]> {
     .filter(r => r.title && r.externalId);
 }
 
+// Google's thumbnails come as http:// and with a fake "page curl" graphic
+// baked in (edge=curl) — upgrade the scheme and drop the curl
+export function cleanGoogleCover(url: string | undefined): string | null {
+  if (!url) return null;
+  return url.replace(/^http:/, 'https:').replace(/&edge=curl/, '');
+}
+
 async function searchGoogleBooks(search: string): Promise<MetadataResult[]> {
   const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(search)}&maxResults=8&printType=books`;
   const res = await fetch(url);
@@ -203,8 +211,7 @@ async function searchGoogleBooks(search: string): Promise<MetadataResult[]> {
         title: info.title as string,
         author: info.authors?.[0] || null,
         alternativeTitles: [],
-        // Google serves http:// thumbnails; the page is https, so upgrade
-        coverUrl: info.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || null,
+        coverUrl: cleanGoogleCover(info.imageLinks?.thumbnail),
         year: info.publishedDate ? parseInt(info.publishedDate.slice(0, 4), 10) || null : null,
         suggestedMediaType: 'book' as const,
       };
@@ -214,10 +221,10 @@ async function searchGoogleBooks(search: string): Promise<MetadataResult[]> {
 
 async function searchBooks(search: string): Promise<MetadataResult[]> {
   try {
-    const results = await searchOpenLibrary(search);
+    const results = await searchGoogleBooks(search);
     if (results.length > 0) return results;
-  } catch { /* fall through to Google Books */ }
-  return searchGoogleBooks(search);
+  } catch { /* fall through to Open Library */ }
+  return searchOpenLibrary(search);
 }
 
 export async function searchMetadata(search: string, mediaType: MediaType): Promise<MetadataResult[]> {

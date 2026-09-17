@@ -72,7 +72,7 @@ export interface MediaItem {
   rating: number | null;
   tags: string[];
   year: number | null;
-  externalIds: { anilistId?: number; tmdbId?: number; malId?: number; openLibraryId?: number; googleBooksId?: string };
+  externalIds: { anilistId?: number; tmdbId?: number; malId?: number; openLibraryId?: number; googleBooksId?: string; goodreadsId?: number };
   notes: string;
   createdAt: any;
   updatedAt: any;

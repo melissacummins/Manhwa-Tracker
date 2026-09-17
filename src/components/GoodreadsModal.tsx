@@ -1,17 +1,23 @@
 import { useRef, useState } from 'react';
-import { BookOpen, CheckCircle2, RefreshCw, XCircle } from 'lucide-react';
+import { BookOpen, CheckCircle2, Image as ImageIcon, RefreshCw, XCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { User } from '../firebase';
 import { MediaItem } from '../types';
 import {
+  CoverFixReport,
   GoodreadsBook,
   ImportProgress,
   ImportReport,
+  downloadCoverFixReport,
   downloadImportReport,
+  matchRowsToLibrary,
   parseGoodreadsCsv,
+  runCoverFix,
   runGoodreadsImport,
   splitNewAndSkipped,
 } from '../lib/goodreads';
+
+type Mode = 'import' | 'covers';
 
 export function GoodreadsModal({
   user,
@@ -23,19 +29,22 @@ export function GoodreadsModal({
   onClose: () => void;
 }) {
   const [state, setState] = useState<'intro' | 'preview' | 'running' | 'done' | 'error'>('intro');
+  const [mode, setMode] = useState<Mode>('import');
   const [books, setBooks] = useState<GoodreadsBook[]>([]);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
+  const [fixReport, setFixReport] = useState<CoverFixReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const cancelled = useRef(false);
 
-  const handleFile = (file: File | undefined) => {
+  const handleFile = (which: Mode, file: File | undefined) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const parsed = parseGoodreadsCsv(e.target?.result as string);
         if (parsed.length === 0) throw new Error('No books found in that file.');
+        setMode(which);
         setBooks(parsed);
         setState('preview');
       } catch (err) {
@@ -50,27 +59,32 @@ export function GoodreadsModal({
     setState('running');
     cancelled.current = false;
     try {
-      const result = await runGoodreadsImport(user.uid, books, existingItems, setProgress, () => cancelled.current);
-      if (result) {
+      if (mode === 'import') {
+        const result = await runGoodreadsImport(user.uid, books, existingItems, setProgress, () => cancelled.current);
+        if (!result) { onClose(); return; } // paused — rerunning resumes
         setReport(result);
         if (result.noCover.length > 0) downloadImportReport(result);
-        setState('done');
       } else {
-        onClose(); // paused — rerunning resumes, already-imported books are skipped
+        const result = await runCoverFix(user.uid, books, existingItems, setProgress, () => cancelled.current);
+        if (!result) { onClose(); return; }
+        setFixReport(result);
+        if (result.stillNoCover.length > 0) downloadCoverFixReport(result);
       }
+      setState('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setState('error');
     }
   };
 
-  const preview = state === 'preview' ? splitNewAndSkipped(books, existingItems) : null;
-  const statusCounts = preview
-    ? preview.fresh.reduce<Record<string, number>>((acc, b) => {
+  const importPreview = state === 'preview' && mode === 'import' ? splitNewAndSkipped(books, existingItems) : null;
+  const statusCounts = importPreview
+    ? importPreview.fresh.reduce<Record<string, number>>((acc, b) => {
         acc[b.status] = (acc[b.status] || 0) + 1;
         return acc;
       }, {})
     : null;
+  const fixTargets = state === 'preview' && mode === 'covers' ? matchRowsToLibrary(books, existingItems) : null;
   const pct = progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
   return (
@@ -103,8 +117,9 @@ export function GoodreadsModal({
         {state === 'intro' && (
           <div className="p-6 space-y-4">
             <p className="text-stone-600">
-              Bring your whole Goodreads library in — shelves become statuses, star
-              ratings and reviews carry over, and covers come from Open Library.
+              Bring your Goodreads library in — shelves become statuses, star ratings
+              and reviews carry over, and covers come straight from Goodreads itself
+              (with Google Books and Open Library as backups).
             </p>
             <ol className="text-sm text-stone-500 space-y-2 list-decimal pl-5">
               <li>
@@ -115,8 +130,8 @@ export function GoodreadsModal({
             </ol>
             <ul className="text-sm text-stone-500 space-y-2 list-disc pl-5">
               <li>Import only <strong>adds</strong> books — nothing you already have is changed or deleted.</li>
-              <li>Books already in your library are skipped, so it's safe to re-run anytime with a fresh export.</li>
-              <li>If you pause or lose connection, just run it again — it picks up where it left off.</li>
+              <li>Books already in your library are skipped, so it's safe to re-run anytime.</li>
+              <li>Pausing is safe — running it again picks up where it left off.</li>
             </ul>
             <label className="btn-primary w-full py-3 flex items-center justify-center cursor-pointer">
               Choose Goodreads CSV
@@ -124,28 +139,44 @@ export function GoodreadsModal({
                 type="file"
                 accept=".csv,text/csv"
                 className="hidden"
-                onChange={(e) => handleFile(e.target.files?.[0])}
+                onChange={(e) => handleFile('import', e.target.files?.[0])}
               />
             </label>
+            <div className="pt-2 border-t border-stone-100">
+              <p className="text-xs text-stone-400 mb-2">
+                Already imported but covers are missing or wrong? This re-checks every book
+                against the CSV and swaps in the exact Goodreads cover. Nothing else is touched.
+              </p>
+              <label className="btn-secondary w-full py-2.5 flex items-center justify-center gap-2 cursor-pointer text-sm">
+                <ImageIcon className="w-4 h-4" />
+                Fix covers using this CSV
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => handleFile('covers', e.target.files?.[0])}
+                />
+              </label>
+            </div>
           </div>
         )}
 
-        {state === 'preview' && preview && statusCounts && (
+        {state === 'preview' && importPreview && statusCounts && (
           <div className="p-6 space-y-4">
             <p className="text-stone-600">
               Found <strong>{books.length}</strong> books in your export.
             </p>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="bg-stone-50 rounded-xl p-3">
-                <div className="text-2xl font-bold text-stone-800">{preview.fresh.length}</div>
+                <div className="text-2xl font-bold text-stone-800">{importPreview.fresh.length}</div>
                 <div className="text-stone-500">new — will be imported</div>
               </div>
               <div className="bg-stone-50 rounded-xl p-3">
-                <div className="text-2xl font-bold text-stone-800">{preview.skipped}</div>
+                <div className="text-2xl font-bold text-stone-800">{importPreview.skipped}</div>
                 <div className="text-stone-500">already in your library</div>
               </div>
             </div>
-            {preview.fresh.length > 0 && (
+            {importPreview.fresh.length > 0 && (
               <div className="text-sm text-stone-500 bg-stone-50 rounded-xl p-3">
                 {Object.entries(statusCounts).map(([status, n]) => (
                   <div key={status} className="flex justify-between">
@@ -156,16 +187,37 @@ export function GoodreadsModal({
               </div>
             )}
             <p className="text-xs text-stone-400">
-              Cover lookup takes about a second per book
-              {preview.fresh.length > 60 ? ` — roughly ${Math.ceil(preview.fresh.length / 120)} min for your list` : ''}.
-              Keep this tab open while it runs.
+              Cover lookup takes about a second per book. Keep this tab open while it runs.
             </p>
             <button
               onClick={start}
-              disabled={preview.fresh.length === 0}
+              disabled={importPreview.fresh.length === 0}
               className="btn-primary w-full py-3 disabled:opacity-50"
             >
-              {preview.fresh.length === 0 ? 'Nothing new to import' : `Import ${preview.fresh.length} books`}
+              {importPreview.fresh.length === 0 ? 'Nothing new to import' : `Import ${importPreview.fresh.length} books`}
+            </button>
+          </div>
+        )}
+
+        {state === 'preview' && fixTargets && (
+          <div className="p-6 space-y-4">
+            <p className="text-stone-600">
+              Matched <strong>{fixTargets.length}</strong> of your library's books to the export.
+            </p>
+            <ul className="text-sm text-stone-500 space-y-2 list-disc pl-5">
+              <li>Where Goodreads has the exact cover, it <strong>replaces</strong> whatever is there now.</li>
+              <li>Books that are missing a cover get one from Google Books or Open Library as a backup.</li>
+              <li>Titles, statuses, ratings, notes — untouched.</li>
+            </ul>
+            <p className="text-xs text-stone-400">
+              About a second per book. Keep this tab open while it runs.
+            </p>
+            <button
+              onClick={start}
+              disabled={fixTargets.length === 0}
+              className="btn-primary w-full py-3 disabled:opacity-50"
+            >
+              {fixTargets.length === 0 ? 'No matching books found' : `Fix covers for ${fixTargets.length} books`}
             </button>
           </div>
         )}
@@ -226,13 +278,45 @@ export function GoodreadsModal({
           </div>
         )}
 
+        {state === 'done' && fixReport && (
+          <div className="p-6 space-y-4">
+            <div className="flex items-center gap-3 text-emerald-600">
+              <CheckCircle2 className="w-8 h-8" />
+              <div className="text-lg font-bold">Covers fixed!</div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="bg-stone-50 rounded-xl p-3">
+                <div className="text-2xl font-bold text-stone-800">{fixReport.replaced}</div>
+                <div className="text-stone-500">exact Goodreads covers</div>
+              </div>
+              <div className="bg-stone-50 rounded-xl p-3">
+                <div className="text-2xl font-bold text-stone-800">{fixReport.filled}</div>
+                <div className="text-stone-500">missing covers filled</div>
+              </div>
+              <div className="bg-stone-50 rounded-xl p-3">
+                <div className="text-2xl font-bold text-stone-800">{fixReport.unchanged}</div>
+                <div className="text-stone-500">already fine</div>
+              </div>
+            </div>
+            {fixReport.stillNoCover.length > 0 && (
+              <p className="text-sm text-gold bg-amber-50 border border-amber-100 rounded-xl p-3">
+                {fixReport.stillNoCover.length} books still have no cover anywhere — a report
+                file listing them was downloaded.
+              </p>
+            )}
+            <button onClick={onClose} className="btn-primary w-full py-3">
+              See My Books
+            </button>
+          </div>
+        )}
+
         {state === 'error' && (
           <div className="p-6 space-y-4">
             <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-3">{error}</p>
             <p className="text-sm text-stone-500">
               Nothing was harmed — you can safely try again. If this keeps happening, send this message to Claude.
             </p>
-            <button onClick={() => { setError(null); setState('intro'); }} className="btn-primary w-full py-3">
+            <button onClick={() => { setError(null); setReport(null); setFixReport(null); setState('intro'); }} className="btn-primary w-full py-3">
               Try Again
             </button>
           </div>
