@@ -277,9 +277,9 @@ export function MediaForm({
                   via MyAnimeList — AniList wasn't reachable
                 </span>
               )}
-              {results[0].source === 'googlebooks' && (
+              {results[0].source === 'openlibrary' && (
                 <span className="ml-2 font-medium normal-case text-xs text-stone-400">
-                  via Google Books — Open Library had no matches
+                  via Open Library — Google Books had no matches
                 </span>
               )}
             </label>

@@ -1,11 +1,21 @@
 // Goodreads library import: parses the CSV that Goodreads' own
 // "Export Library" produces (My Books → Import and Export), maps shelves and
-// ratings onto our statuses, and enriches each book with a cover and Open
-// Library id. Import only ADDS new book entries — it never edits or deletes
-// anything — and re-running it is safe: books already in the library are
-// skipped, so an interrupted run just resumes.
+// ratings onto our statuses, and enriches each book with a cover. Import only
+// ADDS new book entries — it never edits or deletes anything — and re-running
+// it is safe: books already in the library are skipped, so an interrupted run
+// just resumes.
+//
+// Covers come from a three-step chain built for a KU/indie-heavy shelf:
+//   1. Goodreads itself, by the Book Id in the CSV (via our relay) — the
+//      exact cover of the exact edition, works for Amazon-only titles.
+//   2. Google Books, strict title+author match.
+//   3. Open Library, ISBN first then strict title+author match.
+// runCoverFix() re-runs that chain over books ALREADY in the library using
+// the same CSV, replacing covers when Goodreads has the exact one and
+// filling in missing ones from the catalogs.
 
 import { writeBatch, collection, doc, db, serverTimestamp } from '../firebase';
+import { cleanGoogleCover } from './metadata';
 import { MediaItem, normalizeTitle, typeGroupOf } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -48,7 +58,7 @@ export function parseCsv(text: string): string[][] {
 // ---------------------------------------------------------------------------
 
 export interface GoodreadsBook {
-  goodreadsId: string;
+  goodreadsId: number | null;
   title: string;
   seriesTitle: string | null; // the full "Title (Series, #1)" form, if any
   author: string | null;
@@ -125,7 +135,7 @@ export function parseGoodreadsCsv(text: string): GoodreadsBook[] {
       .filter(Boolean).join('\n\n').slice(0, 5000);
 
     books.push({
-      goodreadsId: get(row, idx.id),
+      goodreadsId: parseInt(get(row, idx.id), 10) || null,
       title,
       seriesTitle: seriesMatch ? rawTitle : null,
       author: get(row, idx.author) || null,
@@ -141,20 +151,70 @@ export function parseGoodreadsCsv(text: string): GoodreadsBook[] {
 }
 
 // ---------------------------------------------------------------------------
-// Open Library enrichment (covers + work ids), cached so re-runs are instant
+// Cover enrichment: Goodreads (exact) → Google Books → Open Library.
+// Cached locally so re-runs and the cover-fix pass are cheap.
 // ---------------------------------------------------------------------------
 
-interface OlMatch { olId: number | null; coverId: number | null; year: number | null }
+export interface CoverMatch {
+  coverUrl: string | null;
+  source: 'goodreads' | 'googlebooks' | 'openlibrary' | null;
+  googleBooksId: string | null;
+  olId: number | null;
+  year: number | null;
+}
 
-const OL_CACHE_KEY = 'cc-goodreads-ol-cache';
+const NO_MATCH: CoverMatch = { coverUrl: null, source: null, googleBooksId: null, olId: null, year: null };
 
-function loadOlCache(): Record<string, OlMatch> {
-  try { return JSON.parse(localStorage.getItem(OL_CACHE_KEY) || '{}'); } catch { return {}; }
+// v2: the v1 cache held Open-Library-only lookups, including its bad matches
+const COVER_CACHE_KEY = 'cc-goodreads-cover-cache-v2';
+
+function loadCoverCache(): Record<string, CoverMatch> {
+  try { return JSON.parse(localStorage.getItem(COVER_CACHE_KEY) || '{}'); } catch { return {}; }
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function lookupOpenLibrary(book: GoodreadsBook): Promise<OlMatch> {
+// Loose author check: full-string or family-name match, permissive when
+// either side is missing (title match still required)
+function authorsMatch(a: string | null, b: string | null | undefined): boolean {
+  if (!a || !b) return true;
+  const norm = (s: string) => normalizeTitle(s);
+  const last = (s: string) => norm(s).split(' ').pop() || '';
+  return norm(a) === norm(b) || (last(a) !== '' && last(a) === last(b));
+}
+
+async function lookupGoodreadsCover(goodreadsId: number): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/goodreads-cover?id=${goodreadsId}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.coverUrl || null;
+  } catch { return null; }
+}
+
+async function lookupGoogleBooks(book: GoodreadsBook): Promise<CoverMatch | null> {
+  const q = `intitle:"${book.title}"` + (book.author ? ` inauthor:"${book.author}"` : '');
+  try {
+    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=5&printType=books`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const volumes: any[] = json?.items || [];
+    const match = volumes.find(v =>
+      normalizeTitle(v.volumeInfo?.title || '') === normalizeTitle(book.title) &&
+      authorsMatch(book.author, v.volumeInfo?.authors?.[0])
+    );
+    if (!match) return null;
+    return {
+      coverUrl: cleanGoogleCover(match.volumeInfo?.imageLinks?.thumbnail),
+      source: 'googlebooks',
+      googleBooksId: match.id,
+      olId: null,
+      year: match.volumeInfo?.publishedDate ? parseInt(match.volumeInfo.publishedDate.slice(0, 4), 10) || null : null,
+    };
+  } catch { return null; }
+}
+
+async function lookupOpenLibrary(book: GoodreadsBook): Promise<CoverMatch | null> {
   const fields = 'key,title,cover_i,first_publish_year';
   const urls: string[] = [];
   if (book.isbn) {
@@ -180,14 +240,52 @@ async function lookupOpenLibrary(book: GoodreadsBook): Promise<OlMatch> {
       if (match) {
         const idMatch = /OL(\d+)W/.exec(match.key);
         return {
+          coverUrl: match.cover_i ? `https://covers.openlibrary.org/b/id/${match.cover_i}-L.jpg` : null,
+          source: 'openlibrary',
+          googleBooksId: null,
           olId: idMatch ? parseInt(idMatch[1], 10) : null,
-          coverId: match.cover_i ?? null,
           year: match.first_publish_year ?? null,
         };
       }
     } catch { /* network hiccup — try the next url or give up gracefully */ }
   }
-  return { olId: null, coverId: null, year: null };
+  return null;
+}
+
+async function findCover(book: GoodreadsBook): Promise<CoverMatch> {
+  if (book.goodreadsId) {
+    const grCover = await lookupGoodreadsCover(book.goodreadsId);
+    if (grCover) return { coverUrl: grCover, source: 'goodreads', googleBooksId: null, olId: null, year: null };
+  }
+  const gb = await lookupGoogleBooks(book);
+  if (gb?.coverUrl) return gb;
+  const ol = await lookupOpenLibrary(book);
+  if (ol?.coverUrl) return ol;
+  // No cover anywhere — keep whichever catalog id/year we did find
+  return gb || ol || NO_MATCH;
+}
+
+async function findCoverCached(
+  book: GoodreadsBook,
+  cache: Record<string, CoverMatch>,
+): Promise<CoverMatch> {
+  const key = book.goodreadsId ? String(book.goodreadsId) : normalizeTitle(book.title);
+  let match = cache[key];
+  if (match === undefined) {
+    match = await findCover(book);
+    cache[key] = match;
+    try { localStorage.setItem(COVER_CACHE_KEY, JSON.stringify(cache)); } catch { /* cache is best-effort */ }
+    await sleep(350); // stay polite to everyone we're asking
+  }
+  return match;
+}
+
+function externalIdsFor(book: GoodreadsBook, match: CoverMatch): MediaItem['externalIds'] {
+  const ids: MediaItem['externalIds'] = {};
+  if (book.goodreadsId) ids.goodreadsId = book.goodreadsId;
+  if (match.googleBooksId) ids.googleBooksId = match.googleBooksId;
+  if (match.olId) ids.openLibraryId = match.olId;
+  return ids;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +332,7 @@ export async function runGoodreadsImport(
   isCancelled: () => boolean,
 ): Promise<ImportReport | null> {
   const { fresh, skipped } = splitNewAndSkipped(books, existingItems);
-  const cache = loadOlCache();
+  const cache = loadCoverCache();
   const mediaRef = collection(db, 'users', uid, 'media');
 
   let imported = 0;
@@ -252,16 +350,8 @@ export async function runGoodreadsImport(
     const book = fresh[i];
     onProgress({ phase: 'enriching', current: i + 1, total: fresh.length, coversFound, detail: book.title });
 
-    const cacheKey = book.goodreadsId || normalizeTitle(book.title);
-    let match = cache[cacheKey];
-    if (match === undefined) {
-      match = await lookupOpenLibrary(book);
-      cache[cacheKey] = match;
-      try { localStorage.setItem(OL_CACHE_KEY, JSON.stringify(cache)); } catch { /* cache is best-effort */ }
-      await sleep(350); // stay polite to Open Library
-    }
-
-    if (match.coverId) coversFound++;
+    const match = await findCoverCached(book, cache);
+    if (match.coverUrl) coversFound++;
     else noCover.push(book.author ? `${book.title} — ${book.author}` : book.title);
 
     batch.set(doc(mediaRef), {
@@ -269,7 +359,7 @@ export async function runGoodreadsImport(
       title: book.title,
       author: book.author,
       alternativeTitles: book.seriesTitle ? [book.seriesTitle] : [],
-      coverUrl: match.coverId ? `https://covers.openlibrary.org/b/id/${match.coverId}-L.jpg` : null,
+      coverUrl: match.coverUrl,
       status: book.status,
       isFavorite: book.isFavorite,
       wouldRevisit: false,
@@ -277,7 +367,7 @@ export async function runGoodreadsImport(
       rating: book.rating,
       tags: [],
       year: book.year ?? match.year,
-      externalIds: match.olId ? { openLibraryId: match.olId } : {},
+      externalIds: externalIdsFor(book, match),
       notes: book.notes,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -299,6 +389,117 @@ export async function runGoodreadsImport(
   return { imported, skipped, coversFound, noCover };
 }
 
+// ---------------------------------------------------------------------------
+// Cover fix-up: repair books ALREADY in the library using the same CSV.
+// Replaces the cover when Goodreads has the exact one (safe — it's the very
+// edition that was logged); otherwise only fills covers that are missing.
+// Never touches titles, statuses, ratings, notes, or anything else.
+// ---------------------------------------------------------------------------
+
+export interface CoverFixReport {
+  replaced: number;      // wrong-or-not covers swapped for the exact Goodreads one
+  filled: number;        // was missing, now has a catalog cover
+  unchanged: number;
+  stillNoCover: string[];
+}
+
+export function matchRowsToLibrary(books: GoodreadsBook[], existingItems: MediaItem[]) {
+  const byName = new Map<string, MediaItem>();
+  for (const m of existingItems) {
+    if (typeGroupOf(m.mediaType) !== 'books') continue;
+    byName.set(normalizeTitle(m.title), m);
+    m.alternativeTitles.forEach(a => byName.set(normalizeTitle(a), m));
+  }
+  const targets: { book: GoodreadsBook; item: MediaItem }[] = [];
+  const matchedItemIds = new Set<string>();
+  for (const b of books) {
+    const names = [b.title, b.seriesTitle].filter((t): t is string => !!t).map(normalizeTitle);
+    const item = names.map(n => byName.get(n)).find(Boolean);
+    if (item && !matchedItemIds.has(item.id)) {
+      matchedItemIds.add(item.id);
+      targets.push({ book: b, item });
+    }
+  }
+  return targets;
+}
+
+export async function runCoverFix(
+  uid: string,
+  books: GoodreadsBook[],
+  existingItems: MediaItem[],
+  onProgress: (p: ImportProgress) => void,
+  isCancelled: () => boolean,
+): Promise<CoverFixReport | null> {
+  const targets = matchRowsToLibrary(books, existingItems);
+  const cache = loadCoverCache();
+
+  let replaced = 0;
+  let filled = 0;
+  let unchanged = 0;
+  const stillNoCover: string[] = [];
+  let batch = writeBatch(db);
+  let batchCount = 0;
+
+  for (let i = 0; i < targets.length; i++) {
+    if (isCancelled()) {
+      if (batchCount > 0) await batch.commit();
+      return null;
+    }
+    const { book, item } = targets[i];
+    onProgress({ phase: 'enriching', current: i + 1, total: targets.length, coversFound: replaced + filled, detail: book.title });
+
+    const match = await findCoverCached(book, cache);
+
+    // Deliberately narrow update: cover + external ids only, and no
+    // updatedAt bump — a cover repair isn't reading activity
+    const update: Record<string, unknown> = {};
+    if (match.coverUrl && match.source === 'goodreads' && item.coverUrl !== match.coverUrl) {
+      update.coverUrl = match.coverUrl;
+      replaced++;
+    } else if (match.coverUrl && !item.coverUrl) {
+      update.coverUrl = match.coverUrl;
+      filled++;
+    } else {
+      unchanged++;
+      if (!item.coverUrl && !match.coverUrl) {
+        stillNoCover.push(book.author ? `${book.title} — ${book.author}` : book.title);
+      }
+    }
+    if (book.goodreadsId && !item.externalIds?.goodreadsId) {
+      update['externalIds.goodreadsId'] = book.goodreadsId;
+    }
+
+    if (Object.keys(update).length > 0) {
+      batch.update(doc(db, 'users', uid, 'media', item.id), update);
+      batchCount++;
+      if (batchCount >= 100) {
+        onProgress({ phase: 'writing', current: i + 1, total: targets.length, coversFound: replaced + filled, detail: 'Saving...' });
+        await batch.commit();
+        batch = writeBatch(db);
+        batchCount = 0;
+      }
+    }
+  }
+  if (batchCount > 0) {
+    onProgress({ phase: 'writing', current: targets.length, total: targets.length, coversFound: replaced + filled, detail: 'Saving...' });
+    await batch.commit();
+  }
+
+  return { replaced, filled, unchanged, stillNoCover };
+}
+
+// ---------------------------------------------------------------------------
+// Report files
+// ---------------------------------------------------------------------------
+
+function downloadMarkdown(lines: string[], name: string) {
+  const uri = 'data:text/markdown;charset=utf-8,' + encodeURIComponent(lines.join('\n'));
+  const a = document.createElement('a');
+  a.setAttribute('href', uri);
+  a.setAttribute('download', `${name}-${new Date().toISOString().slice(0, 10)}.md`);
+  a.click();
+}
+
 export function downloadImportReport(report: ImportReport) {
   const lines = [
     '# Goodreads Import Report',
@@ -312,15 +513,30 @@ export function downloadImportReport(report: ImportReport) {
     lines.push(
       `## Imported without a cover (${report.noCover.length})`,
       '',
-      'Open Library had no confident match for these. They imported fine — to add a',
+      'None of the sources had a confident match. They imported fine — to add a',
       'cover, open the entry, hit Edit, and run a search.',
       '',
       ...report.noCover.map(t => `- ${t}`),
     );
   }
-  const uri = 'data:text/markdown;charset=utf-8,' + encodeURIComponent(lines.join('\n'));
-  const a = document.createElement('a');
-  a.setAttribute('href', uri);
-  a.setAttribute('download', `goodreads-import-report-${new Date().toISOString().slice(0, 10)}.md`);
-  a.click();
+  downloadMarkdown(lines, 'goodreads-import-report');
+}
+
+export function downloadCoverFixReport(report: CoverFixReport) {
+  const lines = [
+    '# Cover Fix Report',
+    '',
+    `- Replaced with the exact Goodreads cover: ${report.replaced}`,
+    `- Missing covers filled from catalogs: ${report.filled}`,
+    `- Left as-is: ${report.unchanged}`,
+    '',
+  ];
+  if (report.stillNoCover.length > 0) {
+    lines.push(
+      `## Still missing a cover (${report.stillNoCover.length})`,
+      '',
+      ...report.stillNoCover.map(t => `- ${t}`),
+    );
+  }
+  downloadMarkdown(lines, 'cover-fix-report');
 }

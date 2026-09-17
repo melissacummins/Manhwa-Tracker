@@ -48,6 +48,9 @@ export function DetailModal({
   const googleBooksUrl = item.externalIds?.googleBooksId
     ? `https://books.google.com/books?id=${item.externalIds.googleBooksId}`
     : null;
+  const goodreadsUrl = item.externalIds?.goodreadsId
+    ? `https://www.goodreads.com/book/show/${item.externalIds.goodreadsId}`
+    : null;
 
   const copyTitle = () => {
     navigator.clipboard.writeText(item.title).then(() => {
@@ -113,6 +116,11 @@ export function DetailModal({
               {tmdbUrl && (
                 <a href={tmdbUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gold hover:underline">
                   TMDB <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              {goodreadsUrl && (
+                <a href={goodreadsUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gold hover:underline">
+                  Goodreads <ExternalLink className="w-3 h-3" />
                 </a>
               )}
               {openLibraryUrl && (
