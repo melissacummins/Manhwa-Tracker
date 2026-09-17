@@ -1,9 +1,10 @@
 import { MediaType } from '../types';
 
 export interface MetadataResult {
-  externalId: number;
-  source: 'anilist' | 'tmdb' | 'mal';
+  externalId: number | string;
+  source: 'anilist' | 'tmdb' | 'mal' | 'openlibrary' | 'googlebooks';
   title: string;
+  author?: string | null;
   alternativeTitles: string[];
   coverUrl: string | null;
   year: number | null;
@@ -161,8 +162,67 @@ async function searchMal(search: string, mediaType: MediaType): Promise<Metadata
     .filter(r => r.title);
 }
 
+// Book search: Open Library first (free, keyless, stable work ids), with
+// Google Books as the backup catalog — both are plain CORS-friendly GETs.
+async function searchOpenLibrary(search: string): Promise<MetadataResult[]> {
+  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(search)}&limit=8&fields=key,title,author_name,first_publish_year,cover_i`;
+  const res = await fetch(url);
+  if (!res.ok) throw new MetadataError(`Open Library search failed (${res.status}) — try again in a moment.`);
+  const json = await res.json();
+  const docs: any[] = json?.docs || [];
+  return docs
+    .map(d => {
+      // Work keys look like "/works/OL45804W" — store the numeric part
+      const idMatch = /OL(\d+)W/.exec(d.key || '');
+      return {
+        externalId: idMatch ? parseInt(idMatch[1], 10) : 0,
+        source: 'openlibrary' as const,
+        title: d.title as string,
+        author: d.author_name?.[0] || null,
+        alternativeTitles: [],
+        coverUrl: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : null,
+        year: d.first_publish_year ?? null,
+        suggestedMediaType: 'book' as const,
+      };
+    })
+    .filter(r => r.title && r.externalId);
+}
+
+async function searchGoogleBooks(search: string): Promise<MetadataResult[]> {
+  const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(search)}&maxResults=8&printType=books`;
+  const res = await fetch(url);
+  if (!res.ok) throw new MetadataError(`Book search failed (${res.status}) — try again in a moment.`);
+  const json = await res.json();
+  const volumes: any[] = json?.items || [];
+  return volumes
+    .map(v => {
+      const info = v.volumeInfo || {};
+      return {
+        externalId: v.id as string,
+        source: 'googlebooks' as const,
+        title: info.title as string,
+        author: info.authors?.[0] || null,
+        alternativeTitles: [],
+        // Google serves http:// thumbnails; the page is https, so upgrade
+        coverUrl: info.imageLinks?.thumbnail?.replace(/^http:/, 'https:') || null,
+        year: info.publishedDate ? parseInt(info.publishedDate.slice(0, 4), 10) || null : null,
+        suggestedMediaType: 'book' as const,
+      };
+    })
+    .filter(r => r.title && r.externalId);
+}
+
+async function searchBooks(search: string): Promise<MetadataResult[]> {
+  try {
+    const results = await searchOpenLibrary(search);
+    if (results.length > 0) return results;
+  } catch { /* fall through to Google Books */ }
+  return searchGoogleBooks(search);
+}
+
 export async function searchMetadata(search: string, mediaType: MediaType): Promise<MetadataResult[]> {
   if (!search.trim()) return [];
+  if (mediaType === 'book') return searchBooks(search);
   if (mediaType === 'movie' || mediaType === 'tv') return searchTmdb(search, mediaType);
   try {
     return await searchAniList(search, mediaType);

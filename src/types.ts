@@ -1,24 +1,28 @@
-export type MediaType = 'manhwa' | 'manhua' | 'manga' | 'webtoon' | 'anime' | 'movie' | 'tv';
+export type MediaType = 'manhwa' | 'manhua' | 'manga' | 'webtoon' | 'book' | 'anime' | 'movie' | 'tv';
 
 // Comic formats are stored granularly (AniList tells us manhwa vs manga vs
 // manhua) but browsed as ONE bucket — the owner never filters them apart.
 export const COMIC_TYPES: MediaType[] = ['manhwa', 'manhua', 'manga', 'webtoon'];
 
-export type TypeGroup = 'comics' | 'anime' | 'movie' | 'tv';
+export type TypeGroup = 'comics' | 'books' | 'anime' | 'movie' | 'tv';
 
 export const TYPE_GROUPS: { value: TypeGroup; label: string; defaultType: MediaType }[] = [
   { value: 'comics', label: 'Manhwa', defaultType: 'manhwa' },
+  { value: 'books', label: 'Book', defaultType: 'book' },
   { value: 'anime', label: 'Anime', defaultType: 'anime' },
   { value: 'movie', label: 'Movie', defaultType: 'movie' },
   { value: 'tv', label: 'TV Show', defaultType: 'tv' },
 ];
 
 export function typeGroupOf(t: MediaType): TypeGroup {
-  return COMIC_TYPES.includes(t) ? 'comics' : (t as TypeGroup);
+  if (COMIC_TYPES.includes(t)) return 'comics';
+  if (t === 'book') return 'books';
+  return t as TypeGroup;
 }
 
 export function typeLabel(t: MediaType): string {
   if (COMIC_TYPES.includes(t)) return 'Manhwa';
+  if (t === 'book') return 'Book';
   if (t === 'anime') return 'Anime';
   if (t === 'movie') return 'Movie';
   return 'TV Show';
@@ -58,6 +62,7 @@ export interface MediaItem {
   id: string;
   mediaType: MediaType;
   title: string;
+  author?: string | null;   // books only — who wrote it
   alternativeTitles: string[];
   coverUrl: string | null;
   status: string;
@@ -67,7 +72,7 @@ export interface MediaItem {
   rating: number | null;
   tags: string[];
   year: number | null;
-  externalIds: { anilistId?: number; tmdbId?: number; malId?: number };
+  externalIds: { anilistId?: number; tmdbId?: number; malId?: number; openLibraryId?: number; googleBooksId?: string };
   notes: string;
   createdAt: any;
   updatedAt: any;

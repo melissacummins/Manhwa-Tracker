@@ -59,7 +59,7 @@ export default function App() {
     // Older saved values were granular ('manga', 'webtoon', ...) — map them
     const saved = savedUi.typeFilter;
     if (['manhwa', 'manhua', 'manga', 'webtoon'].includes(saved)) return 'comics';
-    if (['comics', 'anime', 'movie', 'tv'].includes(saved)) return saved;
+    if (['comics', 'books', 'anime', 'movie', 'tv'].includes(saved)) return saved;
     return 'All';
   });
   const [tagFilter, setTagFilter] = useState<string[]>(Array.isArray(savedUi.tagFilter) ? savedUi.tagFilter : []);
@@ -189,7 +189,7 @@ export default function App() {
   const searchIndex = useMemo(() => {
     const index = new Map<string, string>();
     for (const m of items) {
-      index.set(m.id, [m.title, ...m.alternativeTitles].join('\n').toLowerCase());
+      index.set(m.id, [m.title, m.author || '', ...m.alternativeTitles].join('\n').toLowerCase());
     }
     return index;
   }, [items]);
