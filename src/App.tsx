@@ -27,6 +27,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { StatsBar } from './components/StatsBar';
 import { MediaCard } from './components/MediaCard';
 import { MediaForm } from './components/MediaForm';
+import { GoodreadsModal } from './components/GoodreadsModal';
 import { MigrationModal } from './components/MigrationModal';
 import { NostalgiaModal } from './components/NostalgiaModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -67,6 +68,7 @@ export default function App() {
   const [isNostalgiaOpen, setIsNostalgiaOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
+  const [isGoodreadsOpen, setIsGoodreadsOpen] = useState(false);
   // Open the sync panel when returning from AniList's authorize screen
   const [isSyncOpen, setIsSyncOpen] = useState(() => captureTokenFromHash());
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
@@ -628,6 +630,10 @@ export default function App() {
               setIsSettingsOpen(false);
               setIsMigrationOpen(true);
             }}
+            onGoodreads={() => {
+              setIsSettingsOpen(false);
+              setIsGoodreadsOpen(true);
+            }}
             onSync={() => {
               setIsSettingsOpen(false);
               setIsSyncOpen(true);
@@ -652,6 +658,13 @@ export default function App() {
       <AnimatePresence>
         {isMigrationOpen && (
           <MigrationModal user={user} onClose={() => setIsMigrationOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Goodreads Import Modal */}
+      <AnimatePresence>
+        {isGoodreadsOpen && (
+          <GoodreadsModal user={user} existingItems={items} onClose={() => setIsGoodreadsOpen(false)} />
         )}
       </AnimatePresence>
     </div>

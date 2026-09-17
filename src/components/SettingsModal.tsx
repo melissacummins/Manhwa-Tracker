@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, Download, Link2, Upload, XCircle } from 'lucide-react';
+import { BookOpen, Database, Download, Link2, Upload, XCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db, doc, updateDoc, User } from '../firebase';
 import { UserConfig } from '../types';
@@ -12,6 +12,7 @@ export function SettingsModal({
   onImport,
   onMigrate,
   onSync,
+  onGoodreads,
 }: {
   user: User;
   settings: UserConfig | null;
@@ -20,6 +21,7 @@ export function SettingsModal({
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onMigrate: () => void;
   onSync: () => void;
+  onGoodreads: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -85,6 +87,13 @@ export function SettingsModal({
             >
               <Link2 className="w-4 h-4" />
               Sync with MyAnimeList &amp; AniList
+            </button>
+            <button
+              onClick={onGoodreads}
+              className="btn-secondary w-full mt-3 flex items-center justify-center gap-2 py-3"
+            >
+              <BookOpen className="w-4 h-4" />
+              Import from Goodreads
             </button>
             <button
               onClick={onMigrate}
